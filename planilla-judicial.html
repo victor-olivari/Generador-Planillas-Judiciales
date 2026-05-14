@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Planillas Judiciales — OLIVARI</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+:root{
+  --ol-teal:#2B7A86;--ol-teal-light:#4A97A3;--ol-teal-pale:#E8F5F7;
+  --ol-red:#C94B3D;--ol-red-pale:#FDF0EF;
+  --ol-dark:#3D3D3D;--ol-gray:#6c757d;
+  --ol-bg:#F0F7F8;--ol-card:#fff;
+  --ol-border:#d0e8eb;
+}
+body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:13.5px;color:var(--ol-dark);}
+/* NAVBAR */
+.navbar-ol{background:var(--ol-teal);box-shadow:0 2px 8px rgba(0,0,0,.15);}
+.navbar-ol .brand-title{color:#fff;font-size:1.15rem;font-weight:700;letter-spacing:.3px;}
+.navbar-ol .brand-sub{color:rgba(255,255,255,.75);font-size:.72rem;margin-top:-2px;}
+.navbar-ol .badge-tasas{background:var(--ol-red);color:#fff;font-size:.68rem;padding:3px 8px;border-radius:20px;}
+/* TABS */
+.main-tabs .nav-link{color:var(--ol-teal);font-weight:600;border-radius:8px 8px 0 0;padding:.45rem 1.1rem;border:1px solid transparent;}
+.main-tabs .nav-link.active{background:var(--ol-teal);color:#fff;border-color:var(--ol-teal);}
+.tab-content-box{background:#fff;border:1px solid var(--ol-border);border-radius:0 8px 8px 8px;padding:1.2rem;}
+/* CARDS DE SECCIÓN */
+.rubro-card{border:1px solid var(--ol-border);border-radius:10px;background:#fff;margin-bottom:1rem;box-shadow:0 1px 4px rgba(43,122,134,.06);}
+.rubro-header{background:var(--ol-teal);color:#fff;padding:.55rem 1rem;border-radius:9px 9px 0 0;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;}
+.rubro-header .subtotal-badge{background:rgba(255,255,255,.2);padding:2px 10px;border-radius:12px;font-size:.82rem;}
+.rubro-body{padding:.9rem 1rem;}
+/* ITEMS */
+.item-box{background:#f7fbfc;border:1px solid var(--ol-border);border-radius:8px;padding:.75rem;margin-bottom:.6rem;position:relative;}
+.item-box .item-label{font-weight:600;color:var(--ol-teal);font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;}
+.intereses-box{background:#e8f5f7;border-left:3px solid var(--ol-teal-light);border-radius:0 6px 6px 0;padding:.65rem .8rem;margin-top:.5rem;}
+.tasa-result-box{background:#fff;border:1px solid var(--ol-teal-light);border-radius:6px;padding:.5rem .8rem;font-size:.83rem;margin-top:.4rem;}
+/* PAGOS */
+.pagos-zona{margin:.4rem 0 0 1.5rem;}
+.pago-item{border-radius:6px;padding:.4rem .7rem;margin-bottom:.3rem;font-size:.83rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.pago-capital{background:#d4eef2;border-left:3px solid var(--ol-teal);}
+.pago-interes{background:#fff3cd;border-left:3px solid #f0ad4e;}
+.pago-honorarios{background:#d4edda;border-left:3px solid #28a745;}
+.pago-gastos{background:#fde8e6;border-left:3px solid var(--ol-red);}
+.pago-label{font-size:.72rem;font-weight:600;color:#555;background:rgba(0,0,0,.07);padding:1px 7px;border-radius:10px;}
+/* PERIODOS */
+.periodos-table th{background:var(--ol-teal-pale);font-size:.78rem;padding:3px 7px;}
+.periodos-table td{font-size:.8rem;padding:3px 7px;}
+/* RESUMEN */
+.resumen-card{border:2px solid var(--ol-teal);border-radius:10px;}
+.resumen-card .resumen-header{background:var(--ol-teal);color:#fff;padding:.6rem 1rem;font-weight:700;border-radius:8px 8px 0 0;}
+.tr-subtotal td{background:#e8f5f7;font-weight:600;}
+.tr-total td{background:var(--ol-teal);color:#fff;font-size:1.05rem;font-weight:700;}
+.tr-pago td{color:var(--ol-red);font-size:.88rem;}
+/* HISTORIAL */
+.hist-card{border:1px solid var(--ol-border);border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem;background:#fff;transition:box-shadow .2s;}
+.hist-card:hover{box-shadow:0 2px 10px rgba(43,122,134,.12);border-color:var(--ol-teal-light);}
+/* LABELS */
+.form-label-sm{font-size:.78rem;font-weight:600;color:var(--ol-gray);margin-bottom:2px;}
+.req-star::after{content:" *";color:var(--ol-red);}
+/* BADGES */
+.badge-tasa{background:var(--ol-teal-pale);color:var(--ol-teal);border:1px solid var(--ol-teal-light);font-size:.72rem;padding:2px 8px;border-radius:10px;}
+.badge-dias{background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:10px;}
+/* PRINT AREA */
+#printArea{display:none;}
+@media print{body>*:not(#printArea){display:none!important;}#printArea{display:block!important;}}
+/* Collapsible arrow */
+.collapse-icon{transition:transform .2s;}
+.collapsed .collapse-icon{transform:rotate(-90deg);}
+/* Btn add */
+.btn-add-item{font-size:.8rem;padding:3px 12px;border-color:var(--ol-teal-light);color:var(--ol-teal);}
+.btn-add-item:hover{background:var(--ol-teal);color:#fff;}
+/* Toast */
+.toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;}
+/* Loading spinner */
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-calc-tasa{background:var(--ol-teal);border:none;color:#fff;font-size:.8rem;padding:4px 14px;border-radius:5px;cursor:pointer;}
+.btn-calc-tasa:disabled{opacity:.6;}
+.foja-input{max-width:90px;}
+.fs-label{color:var(--ol-gray);font-size:.72rem;font-style:italic;}
+</style>
+</head>
+<body>
+
+<!-- MODAL CONTRASEÑA -->
+<div class="modal fade" id="modalPassword" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header" style="background:var(--ol-teal);color:#fff;border-radius:8px 8px 0 0;">
+        <div>
+          <div style="font-weight:700;font-size:1rem">OLIVARI</div>
+          <div style="font-size:.72rem;opacity:.8">Generador de Planillas Judiciales</div>
+        </div>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-shield-lock-fill" style="font-size:2rem;color:var(--ol-teal)"></i>
+        <p class="mt-2 mb-3 small text-muted">Ingrese la contraseña de acceso</p>
+        <input type="password" id="inputPassword" class="form-control text-center" placeholder="Contraseña" autocomplete="off">
+        <div id="pwError" class="text-danger small mt-2" style="display:none">Contraseña incorrecta.</div>
+        <button class="btn mt-3 w-100 text-white" style="background:var(--ol-teal)" onclick="verificarPassword()">
+          <i class="bi bi-unlock me-1"></i>Ingresar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-ol px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="brand-title"><i class="bi bi-journal-richtext me-2"></i>Generador de Planillas Judiciales</div>
+    <div class="brand-sub">Powered by OLIVARI — Bienes Raíces y Derecho</div>
+  </div>
+  <span class="badge-tasas"><i class="bi bi-link-45deg me-1"></i>Tasas: Extraídas del sitio del Poder Judicial del Chaco</span>
+</nav>
+
+<!-- MAIN -->
+<div class="container-fluid px-3 pt-3" style="max-width:980px;margin:auto;">
+
+  <!-- TABS -->
+  <ul class="nav main-tabs mb-0" id="mainTabs">
+    <li class="nav-item"><a class="nav-link active" href="#" onclick="showTab('nueva');return false;"><i class="bi bi-plus-circle me-1"></i>Nueva Planilla</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('historial');return false;"><i class="bi bi-clock-history me-1"></i>Historial</a></li>
+  </ul>
+
+  <!-- TAB NUEVA -->
+  <div id="tab-nueva" class="tab-content-box">
+
+    <!-- DATOS DEL EXPEDIENTE -->
+    <div class="rubro-card mb-3">
+      <div class="rubro-header" onclick="toggleSection('secExpte')">
+        <span><i class="bi bi-folder2-open me-2"></i>Datos del Expediente</span>
+        <i class="bi bi-chevron-down collapse-icon" id="ico-secExpte"></i>
+      </div>
+      <div id="secExpte" class="rubro-body">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label-sm req-star">Circunscripción</label>
+            <select id="expCirc" class="form-select form-select-sm">
+              <option value="">-- Seleccionar --</option>
+              <option>1ª Circunscripción - Resistencia</option>
+              <option>2ª Circunscripción - Presidencia Roque Sáenz Peña</option>
+              <option>3ª Circunscripción - Villa Ángela</option>
+              <option>4ª Circunscripción - Charata</option>
+              <option>5ª Circunscripción - Juan José Castelli</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label-sm req-star">Fuero</label>
+            <select id="expFuero" class="form-select form-select-sm" onchange="onFueroChange()">
+              <option value="">-- Seleccionar --</option>
+              <option>Civil y Comercial</option>
+              <option>Paz</option>
+              <option value="Otro">Otro...</option>
+            </select>
+          </div>
+          <div class="col-md-3" id="fueroOtroDiv" style="display:none">
+            <label class="form-label-sm req-star">Especificar fuero</label>
+            <input type="text" id="expFueroOtro" class="form-control form-control-sm" placeholder="Ej: Laboral">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-sm req-star">Juzgado</label>
+            <input type="text" id="expJuzgado" class="form-control form-control-sm" placeholder="Ej: Juzgado Civil N°1">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-sm req-star">Carátula</label>
+            <input type="text" id="expCaratula" class="form-control form-control-sm" placeholder="Ej: García c/ López s/ cobro de pesos">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label-sm req-star">N° Expediente</label>
+            <input type="text" id="expNumero" class="form-control form-control-sm" placeholder="Ej: 1234/2024">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label-sm req-star">Fecha de confección</label>
+            <input type="date" id="expFecha" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-sm">Operador <span class="fs-label">(no se exporta)</span></label>
+            <input type="text" id="expOperador" class="form-control form-control-sm" placeholder="Nombre del operador">
+          </div>
+          <div class="col-md-5">
+            <label class="form-label-sm">Observaciones <span class="fs-label">(opcional)</span></label>
+            <input type="text" id="expObs" class="form-control form-control-sm" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPITAL INICIAL -->
+    <div class="rubro-card">
+      <div class="rubro-header" onclick="toggleSection('secCapital')">
+        <span><i class="bi bi-cash-coin me-2"></i>Capital Inicial</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="subtotal-badge" id="badge-capital">$0,00</span>
+          <i class="bi bi-chevron-down collapse-icon" id="ico-secCapital"></i>
+        </div>
+      </div>
+      <div id="secCapital" class="rubro-body">
+        <div id="capitalItemContainer"></div>
+      </div>
+    </div>
+
+    <!-- HONORARIOS -->
+    <div class="rubro-card">
+      <div class="rubro-header" onclick="toggleSection('secHonorarios')" style="background:#1A6B7A;">
+        <span><i class="bi bi-person-badge me-2"></i>Honorarios</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="subtotal-badge" id="badge-honorarios">$0,00</span>
+          <i class="bi bi-chevron-down collapse-icon" id="ico-secHonorarios"></i>
+        </div>
+      </div>
+      <div id="secHonorarios" class="rubro-body">
+        <div id="honorariosContainer"></div>
+        <button class="btn btn-add-item btn-sm mt-2" onclick="agregarHonorario()"><i class="bi bi-plus-circle me-1"></i>Agregar honorario</button>
+      </div>
+    </div>
+
+    <!-- GASTOS DOCUMENTADOS -->
+    <div class="rubro-card">
+      <div class="rubro-header" onclick="toggleSection('secGastosDoc')" style="background:#3D7A6A;">
+        <span><i class="bi bi-receipt me-2"></i>Gastos Documentados</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="subtotal-badge" id="badge-gastos-doc">$0,00</span>
+          <i class="bi bi-chevron-down collapse-icon" id="ico-secGastosDoc"></i>
+        </div>
+      </div>
+      <div id="secGastosDoc" class="rubro-body">
+        <div id="gastosDocContainer"></div>
+        <button class="btn btn-add-item btn-sm mt-2" onclick="agregarGastoDoc()"><i class="bi bi-plus-circle me-1"></i>Agregar gasto documentado</button>
+      </div>
+    </div>
+
+    <!-- GASTOS NO DOCUMENTADOS -->
+    <div class="rubro-card">
+      <div class="rubro-header" onclick="toggleSection('secGastosNoDoc')" style="background:#6A4A3D;">
+        <span><i class="bi bi-file-earmark-x me-2"></i>Gastos No Documentados</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="subtotal-badge" id="badge-gastos-nodoc">$0,00</span>
+          <i class="bi bi-chevron-down collapse-icon" id="ico-secGastosNoDoc"></i>
+        </div>
+      </div>
+      <div id="secGastosNoDoc" class="rubro-body">
+        <div id="gastosNoDocContainer"></div>
+      </div>
+    </div>
+
+    <!-- RESUMEN -->
+    <div class="resumen-card mb-3">
+      <div class="resumen-header"><i class="bi bi-calculator-fill me-2"></i>Total de la Planilla</div>
+      <div class="p-3">
+        <table class="table table-sm table-bordered mb-0" id="tablaResumen">
+          <tbody id="resumenBody"></tbody>
+        </table>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <button class="btn btn-success btn-sm" onclick="guardarHistorial()"><i class="bi bi-save me-1"></i>Guardar en historial</button>
+          <button class="btn btn-sm text-white" style="background:var(--ol-teal)" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+          <button class="btn btn-danger btn-sm" onclick="exportarPDF()"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportarImagen()"><i class="bi bi-image me-1"></i>Imagen</button>
+          <button class="btn btn-outline-danger btn-sm ms-auto" onclick="limpiarTodo()"><i class="bi bi-trash me-1"></i>Limpiar todo</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-nueva -->
+
+  <!-- TAB HISTORIAL -->
+  <div id="tab-historial" class="tab-content-box" style="display:none">
+    <h6 class="fw-bold mb-3"><i class="bi bi-clock-history me-1" style="color:var(--ol-teal)"></i>Historial de planillas</h6>
+    <div id="historialLista"><p class="text-muted small">Sin planillas guardadas.</p></div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- TOAST -->
+<div class="toast-container">
+  <div id="myToast" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FALLBACK MANUAL (cuando el proxy falla) -->
+<div class="modal fade" id="modalFallback" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header" style="background:var(--ol-teal);color:#fff;">
+        <h6 class="modal-title mb-0"><i class="bi bi-calculator me-2"></i>Ingresar interés manualmente</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Info de conexión -->
+        <div class="alert alert-warning py-2 small mb-3">
+          <i class="bi bi-wifi-off me-1"></i>
+          <strong>No se pudo conectar automáticamente al PJ Chaco.</strong><br>
+          Esto ocurre cuando el archivo se abre directamente como <code>file://</code> y el navegador bloquea las conexiones externas.
+          <div class="mt-2">
+            <strong>Solución permanente:</strong> ejecute este comando en la Terminal y abra
+            <code>http://localhost:8080/planilla-judicial.html</code>:<br>
+            <code style="background:#f8f9fa;padding:3px 8px;border-radius:4px;display:inline-block;margin-top:4px;font-size:.8rem">
+              cd "/Users/victorolivari/Mi unidad/Estudio Jurídico/SIstema de planillas" &amp;&amp; python3 -m http.server 8080
+            </code>
+          </div>
+        </div>
+
+        <!-- Datos del cálculo -->
+        <div class="mb-3 p-2 rounded" style="background:#f0f7f8;font-size:.85rem;">
+          <strong>Tasa:</strong> <span id="modalFallbackTitulo"></span><br>
+          <span id="modalFallbackDatos"></span>
+        </div>
+
+        <!-- Link al PJ -->
+        <div class="mb-3 text-center">
+          <a id="modalFallbackLink" href="#" target="_blank" class="btn btn-sm text-white"
+             style="background:var(--ol-teal)">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Abrir Calculadora del PJ Chaco
+          </a>
+          <div class="text-muted mt-1" style="font-size:.72rem">
+            Ingrese los mismos datos allí, obtenga el resultado y cópielo abajo.
+          </div>
+        </div>
+
+        <!-- Campos manuales -->
+        <div class="row g-2">
+          <div class="col-md-5">
+            <label class="form-label-sm req-star">Interés obtenido ($)</label>
+            <input type="text" id="modalFallbackInteresInput" class="form-control form-control-sm"
+                   placeholder="Ej: 60,33" inputmode="decimal">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label-sm">Días calculados</label>
+            <input type="number" id="modalFallbackDiasInput" class="form-control form-control-sm" placeholder="Ej: 367">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-sm">Tasa aplicada (%)</label>
+            <input type="text" id="modalFallbackTasaInput" class="form-control form-control-sm" placeholder="Ej: 6.0329%">
+          </div>
+        </div>
+        <div id="modalFallbackError" class="text-danger small mt-2" style="display:none">
+          <i class="bi bi-exclamation-circle me-1"></i>Ingrese el importe del interés.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button id="modalFallbackConfirm" class="btn btn-sm text-white" style="background:var(--ol-teal)">
+          <i class="bi bi-check-circle me-1"></i>Confirmar interés
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT -->
+<div id="printArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTES Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════
+const PASSWORD = '2026';
+const PJ_URL = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
+const CORS_PROXY = 'https://corsproxy.io/?';
+
+const TIPO_TASA_OPCIONES = [
+  {group:'Tasas Fijas (TNA)', opts:[
+    {v:'fija:0.06',l:'6% TNA'},{v:'fija:0.08',l:'8% TNA'},{v:'fija:0.24',l:'24% TNA'},
+    {v:'fija:0.32',l:'32% TNA'},{v:'fija:0.36',l:'36% TNA'},{v:'fija:0.48',l:'48% TNA'},
+    {v:'fija:0.56',l:'56% TNA'},{v:'pactada',l:'PACTADA (ingresar %)'}
+  ]},
+  {group:'Tasas Variables — Poder Judicial Chaco', opts:[
+    {v:'variable:2',l:'T. ACTIVA 30 DÍAS BNA'},{v:'variable:7',l:'T. ACTIVA 30 DÍAS BNA x 1,5'},
+    {v:'variable:14',l:'T. ALIMENTOS Art.552 CCCN'},{v:'variable:15',l:'TIM BCRA'},
+    {v:'variable:1',l:'T. PASIVA USO JUSTICIA BCRA'}
+  ]}
+];
+const TASA_LABEL = {};
+TIPO_TASA_OPCIONES.forEach(g=>g.opts.forEach(o=>TASA_LABEL[o.v]=o.l));
+
+const GASTOS_DOC_TIPOS = ['Oficio','Tasa de Justicia','Sellado','Cédula','Pericia','Otro'];
+
+const PAGO_CONCEPTOS = {
+  'capital':'A cuenta de capital','interes':'A cuenta de intereses',
+  'honorarios':'A cuenta de honorarios','int_honorarios':'A cuenta de intereses s/honorarios',
+  'gastos':'A cuenta de gastos','int_gastos':'A cuenta de intereses s/gastos'
+};
+const PAGO_CLASES = {
+  'capital':'pago-capital','interes':'pago-interes',
+  'honorarios':'pago-honorarios','int_honorarios':'pago-honorarios',
+  'gastos':'pago-gastos','int_gastos':'pago-gastos'
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════
+let editId = null;
+
+let STATE = {
+  capital: {
+    monto:0, fecha:'', foja:'', obs:'',
+    intereses:{activo:false, tipoTasa:'', tasaPctAnual:'', fechaInicio:'', fechaFin:'', resultado:null},
+    pagos:[]
+  },
+  honorarios:[],
+  gastosDoc:[],
+  gastosNoDoc:{
+    monto:0, descripcion:'', fecha:'', foja:'', obs:'',
+    intereses:{activo:false, tipoTasa:'', tasaPctAnual:'', fechaInicio:'', fechaFin:'', resultado:null},
+    pagos:[]
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CONTRASEÑA
+// ═══════════════════════════════════════════════════════════════
+function verificarPassword(){
+  const v = document.getElementById('inputPassword').value;
+  if(v === PASSWORD){
+    sessionStorage.setItem('planillaAuth','1');
+    bootstrap.Modal.getInstance(document.getElementById('modalPassword')).hide();
+  } else {
+    document.getElementById('pwError').style.display='';
+    document.getElementById('inputPassword').value='';
+    document.getElementById('inputPassword').focus();
+  }
+}
+document.getElementById('inputPassword').addEventListener('keydown',e=>{if(e.key==='Enter')verificarPassword();});
+
+// ═══════════════════════════════════════════════════════════════
+// TABS Y COLAPSABLES
+// ═══════════════════════════════════════════════════════════════
+function showTab(t){
+  document.getElementById('tab-nueva').style.display=t==='nueva'?'':'none';
+  document.getElementById('tab-historial').style.display=t==='historial'?'':'none';
+  document.querySelectorAll('.main-tabs .nav-link').forEach((a,i)=>{
+    a.classList.toggle('active',(t==='nueva'&&i===0)||(t==='historial'&&i===1));
+  });
+  if(t==='historial') renderHistorial();
+}
+function toggleSection(id){
+  const el=document.getElementById(id);
+  const ico=document.getElementById('ico-'+id);
+  const vis=el.style.display!=='none';
+  el.style.display=vis?'none':'';
+  if(ico) ico.style.transform=vis?'rotate(-90deg)':'';
+}
+function onFueroChange(){
+  const v=document.getElementById('expFuero').value;
+  document.getElementById('fueroOtroDiv').style.display=v==='Otro'?'':'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILIDADES
+// ═══════════════════════════════════════════════════════════════
+const fmt = n => n!=null&&!isNaN(n) ? '$'+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+const fmtFecha = iso => { if(!iso)return'—'; const[y,m,d]=iso.split('-'); return`${d}/${m}/${y}`; };
+const isoToDD = iso => { if(!iso)return''; const[y,m,d]=iso.split('-'); return`${d}-${m}-${y}`; };
+const dias = (d1,d2) => Math.max(0,Math.round((new Date(d2)-new Date(d1))/86400000));
+const uid = () => Date.now()+Math.random().toString(36).slice(2,7);
+
+function getTNAFija(tipoTasa, pct){
+  if(tipoTasa.startsWith('fija:')) return parseFloat(tipoTasa.split(':')[1]);
+  if(tipoTasa==='pactada') return (parseFloat(pct)||0)/100;
+  return null;
+}
+
+function calcInteresesFijos(monto, tipoTasa, tasaPct, fechaInicio, fechaFin){
+  const tna = getTNAFija(tipoTasa, tasaPct);
+  if(tna===null||!fechaInicio||!fechaFin||!monto) return null;
+  const d = dias(fechaInicio, fechaFin);
+  return { interes: monto*(tna/365)*d, dias: d, tasa: (tna*100).toFixed(4)+'%' };
+}
+
+function buildTasaSelect(val='', name=''){
+  let html=`<select class="form-select form-select-sm" name="${name}" onchange="onTasaSelectChange(this)">
+    <option value="">Sin interés</option>`;
+  TIPO_TASA_OPCIONES.forEach(g=>{
+    html+=`<optgroup label="${g.group}">`;
+    g.opts.forEach(o=>html+=`<option value="${o.v}"${val===o.v?' selected':''}>${o.l}</option>`);
+    html+='</optgroup>';
+  });
+  return html+'</select>';
+}
+
+function showToast(msg, tipo='success'){
+  const t=document.getElementById('myToast');
+  const m=document.getElementById('toastMsg');
+  t.className=`toast align-items-center text-white border-0 bg-${tipo==='success'?'success':tipo==='error'?'danger':'warning'}`;
+  m.textContent=msg;
+  new bootstrap.Toast(t,{delay:3000}).show();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API PODER JUDICIAL CHACO — con múltiples proxies y fallback
+// ═══════════════════════════════════════════════════════════════
+
+// Lista de proxies CORS a intentar en orden
+// Content-Type: application/x-www-form-urlencoded es una "simple request"
+// (no dispara preflight OPTIONS), lo que permite funcionar desde file://
+const CORS_PROXIES_LIST = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://cors-anywhere.herokuapp.com/${u}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`
+];
+
+function buildFormBody(capital, tipoId, desde, hasta, tasaPactada, session=''){
+  return new URLSearchParams({
+    importe: String(capital),
+    id_tipo_tasa: String(tipoId),
+    desde, hasta,
+    tasa_pactada: String(tasaPactada||0),
+    script_case_session: session,
+    nmgp_parms: '', nmgp_outra_jan: ''
+  }).toString();
+}
+
+async function intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, session){
+  // POST simple (Content-Type urlencoded = sin preflight, funciona desde file://)
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: buildFormBody(capital, tipoId, desde, hasta, tasaPactada, session)
+  });
+  if(!res.ok) return null;
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const ta = doc.querySelector('[name=resultados]') || doc.querySelector('textarea');
+  if(ta?.value?.includes('Intereses:')) return parsePJResult(ta.value);
+  return null;
+}
+
+async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
+  let lastErr = '';
+  for(const proxyFn of CORS_PROXIES_LIST){
+    const proxyUrl = proxyFn(PJ_URL);
+    try{
+      // Intento 1: POST directo sin sesión
+      const r1 = await intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, '');
+      if(r1) return r1;
+
+      // Intento 2: GET para obtener sesión → POST con sesión
+      // Sin cabeceras custom para evitar preflight
+      const getRes = await fetch(proxyUrl);
+      if(getRes.ok){
+        const getHtml = await getRes.text();
+        const getDoc = new DOMParser().parseFromString(getHtml,'text/html');
+        const session = getDoc.querySelector('[name=script_case_session]')?.value || '';
+        const r2 = await intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, session);
+        if(r2) return r2;
+      }
+    } catch(e){
+      lastErr = e.message;
+      continue; // Probar con el siguiente proxy
+    }
+  }
+
+  // Todos los proxies fallaron → lanzar error descriptivo
+  throw new Error(
+    'No se pudo conectar con el servidor del PJ Chaco. ' +
+    'Posible causa: el archivo se abre como file:// y el navegador bloquea conexiones externas. ' +
+    'Solución: abra el archivo desde un servidor local (ver instrucciones abajo) o ingrese el interés manualmente. ' +
+    'Detalle técnico: ' + lastErr
+  );
+}
+
+function parsePJResult(text){
+  const interesM = text.match(/Intereses:\s*\$([0-9.,]+)/);
+  const tasaM = text.match(/Tasa:\s*([0-9.,]+)%/g);
+  const diasM = text.match(/Días del Período calculado:\s*([0-9]+)/);
+  if(!interesM) return null;
+  const interes = parseFloat(interesM[1].replace(/\./g,'').replace(',','.'));
+  const tasa = tasaM && tasaM[1] ? tasaM[1] : (tasaM&&tasaM.length>0?tasaM[tasaM.length-1]:null);
+  const d = diasM ? parseInt(diasM[1]) : null;
+  return {interes, tasa, dias:d, rawText:text};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CÁLCULO DE PERÍODOS (pagos parciales)
+// ═══════════════════════════════════════════════════════════════
+function calcularPeriodos(monto, pagosCapital, tipoTasa, tasaPct, fechaInicio, fechaFin){
+  if(!monto||!fechaInicio||!fechaFin) return [];
+  const tna = getTNAFija(tipoTasa, tasaPct);
+  const esVariable = tipoTasa.startsWith('variable:');
+  const pagOrd = [...pagosCapital]
+    .filter(p=>p.fecha>=fechaInicio&&p.fecha<=fechaFin)
+    .sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  let periodos=[], capActual=monto, desde=fechaInicio;
+  for(const p of pagOrd){
+    if(p.fecha<=desde){capActual=Math.max(0,capActual-p.monto);continue;}
+    const d=dias(desde,p.fecha);
+    const interes = (tna!==null&&d>0) ? capActual*(tna/365)*d : null;
+    periodos.push({capital:capActual,desde,hasta:p.fecha,dias:d,interes,esVariable});
+    capActual=Math.max(0,capActual-p.monto);
+    desde=p.fecha;
+  }
+  const df=dias(desde,fechaFin);
+  const intFinal=(tna!==null&&df>0)?capActual*(tna/365)*df:null;
+  periodos.push({capital:capActual,desde,hasta:fechaFin,dias:df,interes:intFinal,esVariable});
+  return periodos;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER CAPITAL
+// ═══════════════════════════════════════════════════════════════
+function renderCapital(){
+  const c = STATE.capital;
+  const periodos = c.intereses.activo
+    ? calcularPeriodos(c.monto, c.pagos.filter(p=>p.concepto==='capital'), c.intereses.tipoTasa, c.intereses.tasaPctAnual, c.intereses.fechaInicio, c.intereses.fechaFin)
+    : [];
+  const totalInteres = c.intereses.resultado?.interes || periodos.reduce((s,p)=>s+(p.interes||0),0);
+
+  let html=`<div class="item-box">
+    <div class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label-sm req-star">Monto capital ($)</label>
+        <input type="number" class="form-control form-control-sm" value="${c.monto||''}" min="0" step="0.01"
+          onchange="STATE.capital.monto=parseFloat(this.value)||0;recalcular()">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
+        <input type="date" class="form-control form-control-sm" value="${c.fecha||''}"
+          onchange="STATE.capital.fecha=this.value">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label-sm">Fs. <span class="fs-label">opc.</span></label>
+        <input type="text" class="form-control form-control-sm foja-input" value="${c.foja||''}" placeholder="Ej: 5/A"
+          onchange="STATE.capital.foja=this.value">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label-sm">Observaciones <span class="fs-label">(no se exporta)</span></label>
+        <input type="text" class="form-control form-control-sm" value="${c.obs||''}" placeholder="Opcional"
+          onchange="STATE.capital.obs=this.value">
+      </div>
+    </div>
+    <!-- INTERESES -->
+    <div class="mt-2">
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" id="capInteresSwitch" ${c.intereses.activo?'checked':''}
+          onchange="STATE.capital.intereses.activo=this.checked;renderCapital();recalcular()">
+        <label class="form-check-label small fw-semibold" for="capInteresSwitch">
+          <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Calcular intereses sobre Capital Inicial
+        </label>
+      </div>
+      ${c.intereses.activo ? renderInteresesBox('capital',c.intereses,periodos) : ''}
+    </div>
+  </div>`;
+
+  // PAGOS
+  html += renderPagosZona(c.pagos, 'capital');
+
+  // Add pago button
+  html += `<button class="btn btn-add-item btn-sm mt-1" onclick="agregarPago('capital')"><i class="bi bi-plus-circle me-1"></i>Agregar pago parcial</button>`;
+
+  document.getElementById('capitalItemContainer').innerHTML = html;
+  actualizarBadge('capital');
+}
+
+function renderInteresesBox(rubroKey, int, periodos){
+  const esFija = int.tipoTasa.startsWith('fija:') || int.tipoTasa==='pactada';
+  const esVar = int.tipoTasa.startsWith('variable:');
+  const tipoId = esVar ? int.tipoTasa.split(':')[1] : '';
+  let html = `<div class="intereses-box">
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label-sm">Tipo de tasa</label>
+        ${buildTasaSelectRubro(int.tipoTasa, rubroKey)}
+      </div>
+      ${int.tipoTasa==='pactada'?`<div class="col-md-2"><label class="form-label-sm">% anual pactado</label>
+        <input type="number" class="form-control form-control-sm" value="${int.tasaPctAnual||''}" min="0" step="0.01"
+          onchange="setInteresField('${rubroKey}','tasaPctAnual',parseFloat(this.value)||0);recalcular()"></div>`:''}
+      <div class="col-md-3">
+        <label class="form-label-sm">Fecha inicio cómputo</label>
+        <input type="date" class="form-control form-control-sm" value="${int.fechaInicio||''}"
+          onchange="setInteresField('${rubroKey}','fechaInicio',this.value);recalcular()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label-sm">Fecha cierre / cálculo</label>
+        <input type="date" class="form-control form-control-sm" value="${int.fechaFin||''}"
+          onchange="setInteresField('${rubroKey}','fechaFin',this.value);recalcular()">
+      </div>
+      ${int.tipoTasa?`<div class="col-12 d-flex align-items-center gap-2">
+        ${esVar?`<button class="btn-calc-tasa" id="btnCalc_${rubroKey}" onclick="calcularTasaRubro('${rubroKey}')">
+          <i class="bi bi-cloud-download me-1"></i>Obtener tasa del PJ Chaco</button>
+          <small class="text-muted">Fuente: <a href="https://www.justiciachaco.gov.ar/index.php?action=calculadora_tasas" target="_blank" style="color:var(--ol-teal)">justiciachaco.gov.ar</a></small>`:
+          `<button class="btn-calc-tasa" onclick="recalcular()"><i class="bi bi-calculator me-1"></i>Calcular</button>`}
+      </div>`:''}
+    </div>`;
+
+  if(int.resultado){
+    html+=`<div class="tasa-result-box mt-2">
+      <span class="badge-tasa me-1">Tasa aplicada: ${int.resultado.tasa||'—'}</span>
+      <span class="badge-dias me-1">${int.resultado.dias||'—'} días</span>
+      <strong style="color:var(--ol-teal)">Interés: ${fmt(int.resultado.interes)}</strong>
+      ${esVar?`<div class="text-muted" style="font-size:.72rem;margin-top:3px">Calculado por Calculadora de Tasas – Poder Judicial del Chaco</div>`:''}
+    </div>`;
+  } else if(esFija&&int.fechaInicio&&int.fechaFin&&getMonto(rubroKey)){
+    const r = calcInteresesFijos(getMonto(rubroKey),int.tipoTasa,int.tasaPctAnual,int.fechaInicio,int.fechaFin);
+    if(r) html+=`<div class="tasa-result-box mt-2">
+      <span class="badge-tasa me-1">Tasa: ${r.tasa}</span>
+      <span class="badge-dias me-1">${r.dias} días</span>
+      <strong style="color:var(--ol-teal)">Interés: ${fmt(r.interes)}</strong>
+    </div>`;
+  }
+
+  // Tabla de períodos si hay pagos a capital
+  if(periodos.length>1){
+    html+=`<div class="mt-2"><small class="fw-semibold text-muted">Períodos de cómputo (por pagos parciales a capital):</small>
+      <table class="table table-sm table-bordered periodos-table mt-1"><thead>
+        <tr><th>Período</th><th>Capital vigente</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Interés</th></tr>
+      </thead><tbody>
+        ${periodos.map((p,i)=>`<tr><td>${i+1}</td><td>${fmt(p.capital)}</td><td>${fmtFecha(p.desde)}</td><td>${fmtFecha(p.hasta)}</td><td>${p.dias}</td><td>${p.interes!==null?fmt(p.interes):'<em>variable</em>'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  return html+'</div>';
+}
+
+function buildTasaSelectRubro(val, rubroKey){
+  let html=`<select class="form-select form-select-sm" onchange="setInteresField('${rubroKey}','tipoTasa',this.value);recalcular()">
+    <option value="">Sin interés</option>`;
+  TIPO_TASA_OPCIONES.forEach(g=>{
+    html+=`<optgroup label="${g.group}">`;
+    g.opts.forEach(o=>html+=`<option value="${o.v}"${val===o.v?' selected':''}>${o.l}</option>`);
+    html+='</optgroup>';
+  });
+  return html+'</select>';
+}
+
+function getMonto(rubroKey){
+  if(rubroKey==='capital') return STATE.capital.monto;
+  if(rubroKey==='gastosNoDoc') return STATE.gastosNoDoc.monto;
+  const [tipo,idxStr] = rubroKey.split('_');
+  const idx = parseInt(idxStr);
+  if(tipo==='honor') return STATE.honorarios[idx]?.monto||0;
+  if(tipo==='gdoc') return STATE.gastosDoc[idx]?.monto||0;
+  return 0;
+}
+
+function setInteresField(rubroKey, field, val){
+  if(rubroKey==='capital') STATE.capital.intereses[field]=val;
+  else if(rubroKey==='gastosNoDoc') STATE.gastosNoDoc.intereses[field]=val;
+  else {
+    const [tipo,idxStr]=rubroKey.split('_');
+    const idx=parseInt(idxStr);
+    if(tipo==='honor'&&STATE.honorarios[idx]) STATE.honorarios[idx].intereses[field]=val;
+    if(tipo==='gdoc'&&STATE.gastosDoc[idx]) STATE.gastosDoc[idx].intereses[field]=val;
+  }
+  recalcularDesdeRubro(rubroKey);
+}
+
+function recalcularDesdeRubro(rubroKey){
+  if(rubroKey==='capital') renderCapital();
+  else if(rubroKey==='gastosNoDoc') renderGastosNoDoc();
+  else {
+    const [tipo]=rubroKey.split('_');
+    if(tipo==='honor') renderHonorarios();
+    if(tipo==='gdoc') renderGastosDoc();
+  }
+  recalcular();
+}
+
+async function calcularTasaRubro(rubroKey){
+  let int, monto;
+  if(rubroKey==='capital'){int=STATE.capital.intereses;monto=STATE.capital.monto;}
+  else if(rubroKey==='gastosNoDoc'){int=STATE.gastosNoDoc.intereses;monto=STATE.gastosNoDoc.monto;}
+  else{
+    const[tipo,idxStr]=rubroKey.split('_');const idx=parseInt(idxStr);
+    if(tipo==='honor'){int=STATE.honorarios[idx].intereses;monto=STATE.honorarios[idx].monto;}
+    if(tipo==='gdoc'){int=STATE.gastosDoc[idx].intereses;monto=STATE.gastosDoc[idx].monto;}
+  }
+  if(!int||!monto||!int.fechaInicio||!int.fechaFin){
+    showToast('Complete monto, tipo de tasa y fechas antes de calcular.','warning');return;
+  }
+  const tipoId = int.tipoTasa.split(':')[1];
+  const btn = document.getElementById('btnCalc_'+rubroKey);
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Consultando PJ...';}
+  try{
+    const res = await fetchTasaPJ(monto, tipoId, isoToDD(int.fechaInicio), isoToDD(int.fechaFin));
+    if(res){
+      int.resultado = res;
+      showToast('Tasa obtenida del PJ Chaco correctamente.');
+      recalcularDesdeRubro(rubroKey);
+    } else {
+      mostrarFallbackManual(rubroKey, int, monto);
+    }
+  } catch(e){
+    mostrarFallbackManual(rubroKey, int, monto);
+  }
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-cloud-download me-1"></i>Obtener tasa del PJ Chaco';}
+}
+
+function mostrarFallbackManual(rubroKey, int, monto){
+  // Armar URL prefilled para el PJ Chaco
+  const pjUrl = 'https://www.justiciachaco.gov.ar/index.php?action=calculadora_tasas';
+  const desde = fmtFecha(int.fechaInicio);
+  const hasta = fmtFecha(int.fechaFin);
+  const tipoLabel = TASA_LABEL[int.tipoTasa]||int.tipoTasa;
+
+  document.getElementById('modalFallbackTitulo').textContent = tipoLabel;
+  document.getElementById('modalFallbackDatos').innerHTML =
+    `Monto: <strong>${fmt(monto)}</strong> &nbsp;|&nbsp; Desde: <strong>${desde}</strong> &nbsp;|&nbsp; Hasta: <strong>${hasta}</strong>`;
+  document.getElementById('modalFallbackLink').href = pjUrl;
+  document.getElementById('modalFallbackInteresInput').value = '';
+  document.getElementById('modalFallbackDiasInput').value = '';
+  document.getElementById('modalFallbackTasaInput').value = '';
+  // Guardar el rubroKey para cuando el usuario confirme
+  document.getElementById('modalFallbackConfirm').onclick = () => {
+    const interesVal = parseFloat(document.getElementById('modalFallbackInteresInput').value.replace(',','.'));
+    const diasVal = parseInt(document.getElementById('modalFallbackDiasInput').value)||null;
+    const tasaVal = document.getElementById('modalFallbackTasaInput').value||null;
+    if(!interesVal||isNaN(interesVal)){
+      document.getElementById('modalFallbackError').style.display='';
+      return;
+    }
+    document.getElementById('modalFallbackError').style.display='none';
+    int.resultado = { interes: interesVal, dias: diasVal, tasa: tasaVal, rawText: 'Ingreso manual' };
+    bootstrap.Modal.getInstance(document.getElementById('modalFallback')).hide();
+    showToast('Interés cargado manualmente.');
+    recalcularDesdeRubro(rubroKey);
+  };
+  new bootstrap.Modal(document.getElementById('modalFallback')).show();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER HONORARIOS
+// ═══════════════════════════════════════════════════════════════
+function agregarHonorario(){
+  STATE.honorarios.push({
+    id:uid(), descripcion:'', monto:0, fecha:'', foja:'', obs:'',
+    intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},
+    pagos:[]
+  });
+  renderHonorarios();
+}
+
+function renderHonorarios(){
+  let html='';
+  if(STATE.honorarios.length===0){html='<p class="text-muted small">Sin honorarios cargados.</p>';}
+  STATE.honorarios.forEach((h,i)=>{
+    const periodos = h.intereses.activo
+      ? calcularPeriodos(h.monto, h.pagos.filter(p=>p.concepto==='honorarios'), h.intereses.tipoTasa, h.intereses.tasaPctAnual, h.intereses.fechaInicio, h.intereses.fechaFin)
+      : [];
+    html+=`<div class="item-box">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="item-label">Honorario #${i+1}</div>
+        <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.75rem" onclick="STATE.honorarios.splice(${i},1);renderHonorarios();recalcular()"><i class="bi bi-trash"></i></button>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-4">
+          <label class="form-label-sm">Descripción</label>
+          <input type="text" class="form-control form-control-sm" value="${h.descripcion||''}" placeholder="Ej: Dr. Pérez - 1ª instancia"
+            onchange="STATE.honorarios[${i}].descripcion=this.value">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm req-star">Monto ($)</label>
+          <input type="number" class="form-control form-control-sm" value="${h.monto||''}" min="0" step="0.01"
+            onchange="STATE.honorarios[${i}].monto=parseFloat(this.value)||0;recalcular()">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
+          <input type="date" class="form-control form-control-sm" value="${h.fecha||''}"
+            onchange="STATE.honorarios[${i}].fecha=this.value">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm">Fs.</label>
+          <input type="text" class="form-control form-control-sm foja-input" value="${h.foja||''}" placeholder="Ej: 35"
+            onchange="STATE.honorarios[${i}].foja=this.value">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm">Obs. <span class="fs-label">(no exporta)</span></label>
+          <input type="text" class="form-control form-control-sm" value="${h.obs||''}"
+            onchange="STATE.honorarios[${i}].obs=this.value">
+        </div>
+      </div>
+      <div class="mt-2">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" id="honIntSwitch_${i}" ${h.intereses.activo?'checked':''}
+            onchange="STATE.honorarios[${i}].intereses.activo=this.checked;renderHonorarios();recalcular()">
+          <label class="form-check-label small fw-semibold" for="honIntSwitch_${i}">
+            <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Intereses s/ Honorarios
+          </label>
+        </div>
+        ${h.intereses.activo ? renderInteresesBox('honor_'+i, h.intereses, periodos) : ''}
+      </div>
+    </div>
+    ${renderPagosZona(h.pagos, 'honor_'+i)}
+    <button class="btn btn-add-item btn-sm mt-1 mb-2" onclick="agregarPago('honor_${i}')"><i class="bi bi-plus-circle me-1"></i>Agregar pago</button>`;
+  });
+  document.getElementById('honorariosContainer').innerHTML = html;
+  actualizarBadge('honorarios');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER GASTOS DOCUMENTADOS
+// ═══════════════════════════════════════════════════════════════
+function agregarGastoDoc(){
+  STATE.gastosDoc.push({
+    id:uid(), tipo:'Oficio', descripcion:'', monto:0, fecha:'', foja:'', obs:'',
+    intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},
+    pagos:[]
+  });
+  renderGastosDoc();
+}
+
+function renderGastosDoc(){
+  let html='';
+  if(STATE.gastosDoc.length===0){html='<p class="text-muted small">Sin gastos documentados cargados.</p>';}
+  STATE.gastosDoc.forEach((g,i)=>{
+    const periodos = g.intereses.activo
+      ? calcularPeriodos(g.monto, g.pagos.filter(p=>p.concepto==='gastos'), g.intereses.tipoTasa, g.intereses.tasaPctAnual, g.intereses.fechaInicio, g.intereses.fechaFin)
+      : [];
+    html+=`<div class="item-box">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="item-label">Gasto doc. #${i+1}</div>
+        <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.75rem" onclick="STATE.gastosDoc.splice(${i},1);renderGastosDoc();recalcular()"><i class="bi bi-trash"></i></button>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-2">
+          <label class="form-label-sm">Tipo</label>
+          <select class="form-select form-select-sm" onchange="STATE.gastosDoc[${i}].tipo=this.value">
+            ${GASTOS_DOC_TIPOS.map(t=>`<option${g.tipo===t?' selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-sm">Descripción</label>
+          <input type="text" class="form-control form-control-sm" value="${g.descripcion||''}" placeholder="Detalle"
+            onchange="STATE.gastosDoc[${i}].descripcion=this.value">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm req-star">Monto ($)</label>
+          <input type="number" class="form-control form-control-sm" value="${g.monto||''}" min="0" step="0.01"
+            onchange="STATE.gastosDoc[${i}].monto=parseFloat(this.value)||0;recalcular()">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
+          <input type="date" class="form-control form-control-sm" value="${g.fecha||''}"
+            onchange="STATE.gastosDoc[${i}].fecha=this.value">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label-sm">Fs.</label>
+          <input type="text" class="form-control form-control-sm foja-input" value="${g.foja||''}"
+            onchange="STATE.gastosDoc[${i}].foja=this.value">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-sm">Obs.</label>
+          <input type="text" class="form-control form-control-sm" value="${g.obs||''}"
+            onchange="STATE.gastosDoc[${i}].obs=this.value">
+        </div>
+      </div>
+      <div class="mt-2">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" id="gdocIntSwitch_${i}" ${g.intereses.activo?'checked':''}
+            onchange="STATE.gastosDoc[${i}].intereses.activo=this.checked;renderGastosDoc();recalcular()">
+          <label class="form-check-label small fw-semibold" for="gdocIntSwitch_${i}">
+            <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Intereses s/ Gasto
+          </label>
+        </div>
+        ${g.intereses.activo ? renderInteresesBox('gdoc_'+i, g.intereses, periodos) : ''}
+      </div>
+    </div>
+    ${renderPagosZona(g.pagos, 'gdoc_'+i)}
+    <button class="btn btn-add-item btn-sm mt-1 mb-2" onclick="agregarPago('gdoc_${i}')"><i class="bi bi-plus-circle me-1"></i>Agregar pago</button>`;
+  });
+  document.getElementById('gastosDocContainer').innerHTML = html;
+  actualizarBadge('gastos-doc');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER GASTOS NO DOCUMENTADOS
+// ═══════════════════════════════════════════════════════════════
+function renderGastosNoDoc(){
+  const g = STATE.gastosNoDoc;
+  const periodos = g.intereses.activo
+    ? calcularPeriodos(g.monto, g.pagos.filter(p=>p.concepto==='gastos'), g.intereses.tipoTasa, g.intereses.tasaPctAnual, g.intereses.fechaInicio, g.intereses.fechaFin)
+    : [];
+  let html=`<div class="item-box">
+    <div class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label-sm">Monto ($)</label>
+        <input type="number" class="form-control form-control-sm" value="${g.monto||''}" min="0" step="0.01"
+          onchange="STATE.gastosNoDoc.monto=parseFloat(this.value)||0;recalcular()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label-sm">Descripción</label>
+        <input type="text" class="form-control form-control-sm" value="${g.descripcion||''}" placeholder="Ej: traslados, comunicaciones"
+          onchange="STATE.gastosNoDoc.descripcion=this.value">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
+        <input type="date" class="form-control form-control-sm" value="${g.fecha||''}"
+          onchange="STATE.gastosNoDoc.fecha=this.value">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label-sm">Fs.</label>
+        <input type="text" class="form-control form-control-sm foja-input" value="${g.foja||''}"
+          onchange="STATE.gastosNoDoc.foja=this.value">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label-sm">Obs.</label>
+        <input type="text" class="form-control form-control-sm" value="${g.obs||''}"
+          onchange="STATE.gastosNoDoc.obs=this.value">
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" id="gndocIntSwitch" ${g.intereses.activo?'checked':''}
+          onchange="STATE.gastosNoDoc.intereses.activo=this.checked;renderGastosNoDoc();recalcular()">
+        <label class="form-check-label small fw-semibold" for="gndocIntSwitch">
+          <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Intereses s/ Gastos No Doc.
+        </label>
+      </div>
+      ${g.intereses.activo ? renderInteresesBox('gastosNoDoc', g.intereses, periodos) : ''}
+    </div>
+  </div>`;
+  html += renderPagosZona(g.pagos, 'gastosNoDoc');
+  html += `<button class="btn btn-add-item btn-sm mt-1" onclick="agregarPago('gastosNoDoc')"><i class="bi bi-plus-circle me-1"></i>Agregar pago</button>`;
+  document.getElementById('gastosNoDocContainer').innerHTML = html;
+  actualizarBadge('gastos-nodoc');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGOS PARCIALES
+// ═══════════════════════════════════════════════════════════════
+function getPagosArray(rubroKey){
+  if(rubroKey==='capital') return STATE.capital.pagos;
+  if(rubroKey==='gastosNoDoc') return STATE.gastosNoDoc.pagos;
+  const [tipo,idxStr]=rubroKey.split('_');const idx=parseInt(idxStr);
+  if(tipo==='honor'&&STATE.honorarios[idx]) return STATE.honorarios[idx].pagos;
+  if(tipo==='gdoc'&&STATE.gastosDoc[idx]) return STATE.gastosDoc[idx].pagos;
+  return [];
+}
+
+function agregarPago(rubroKey){
+  const arr = getPagosArray(rubroKey);
+  if(!arr) return;
+  const defaultConcepto = rubroKey.startsWith('honor')?'honorarios':rubroKey.startsWith('gdoc')||rubroKey==='gastosNoDoc'?'gastos':'capital';
+  arr.push({id:uid(),fecha:'',monto:0,concepto:defaultConcepto,foja:''});
+  recalcularDesdeRubro(rubroKey);
+}
+
+function renderPagosZona(pagos, rubroKey){
+  if(!pagos||pagos.length===0) return '';
+  let html='<div class="pagos-zona">';
+  pagos.forEach((p,i)=>{
+    const cls = PAGO_CLASES[p.concepto]||'pago-capital';
+    html+=`<div class="pago-item ${cls}">
+      <i class="bi bi-credit-card-fill" style="color:var(--ol-teal-light)"></i>
+      <div>
+        <label class="form-label-sm mb-0">Fecha</label>
+        <input type="date" class="form-control form-control-sm d-inline-block" style="width:140px" value="${p.fecha||''}"
+          onchange="getPagosArray('${rubroKey}')[${i}].fecha=this.value;recalcularDesdeRubro('${rubroKey}')">
+      </div>
+      <div>
+        <label class="form-label-sm mb-0">Monto ($)</label>
+        <input type="number" class="form-control form-control-sm d-inline-block" style="width:120px" value="${p.monto||''}" min="0" step="0.01"
+          onchange="getPagosArray('${rubroKey}')[${i}].monto=parseFloat(this.value)||0;recalcularDesdeRubro('${rubroKey}')">
+      </div>
+      <div>
+        <label class="form-label-sm mb-0">Concepto</label>
+        <select class="form-select form-select-sm d-inline-block" style="width:200px"
+          onchange="getPagosArray('${rubroKey}')[${i}].concepto=this.value;recalcularDesdeRubro('${rubroKey}')">
+          ${Object.entries(PAGO_CONCEPTOS).map(([v,l])=>`<option value="${v}"${p.concepto===v?' selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="form-label-sm mb-0">Fs.</label>
+        <input type="text" class="form-control form-control-sm foja-input d-inline-block" value="${p.foja||''}" placeholder="Fs."
+          onchange="getPagosArray('${rubroKey}')[${i}].foja=this.value">
+      </div>
+      <span class="pago-label">${PAGO_CONCEPTOS[p.concepto]||p.concepto}</span>
+      <button class="btn btn-sm btn-outline-danger ms-auto" style="padding:1px 7px;font-size:.72rem"
+        onclick="getPagosArray('${rubroKey}').splice(${i},1);recalcularDesdeRubro('${rubroKey}')"><i class="bi bi-x"></i></button>
+    </div>`;
+  });
+  return html+'</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RECALCULAR Y RESUMEN
+// ═══════════════════════════════════════════════════════════════
+function getInteresRubro(int, monto, rubroKey){
+  if(!int.activo||!monto) return 0;
+  if(int.resultado) return int.resultado.interes||0;
+  const r = calcInteresesFijos(monto, int.tipoTasa, int.tasaPctAnual, int.fechaInicio, int.fechaFin);
+  return r ? r.interes : 0;
+}
+
+function recalcular(){
+  actualizarBadge('capital');
+  actualizarBadge('honorarios');
+  actualizarBadge('gastos-doc');
+  actualizarBadge('gastos-nodoc');
+  renderResumen();
+}
+
+function actualizarBadge(rubro){
+  const el = document.getElementById('badge-'+rubro);
+  if(!el) return;
+  let v = 0;
+  if(rubro==='capital'){
+    v = STATE.capital.monto + getInteresRubro(STATE.capital.intereses, STATE.capital.monto, 'capital');
+  } else if(rubro==='honorarios'){
+    STATE.honorarios.forEach((h,i)=>{ v+=h.monto+getInteresRubro(h.intereses,h.monto,'honor_'+i); });
+  } else if(rubro==='gastos-doc'){
+    STATE.gastosDoc.forEach((g,i)=>{ v+=g.monto+getInteresRubro(g.intereses,g.monto,'gdoc_'+i); });
+  } else if(rubro==='gastos-nodoc'){
+    v=STATE.gastosNoDoc.monto+getInteresRubro(STATE.gastosNoDoc.intereses,STATE.gastosNoDoc.monto,'gastosNoDoc');
+  }
+  el.textContent = fmt(v);
+}
+
+function renderResumen(){
+  const c = STATE.capital;
+  const intCap = getInteresRubro(c.intereses, c.monto, 'capital');
+  const totalHon = STATE.honorarios.reduce((s,h)=>s+h.monto,0);
+  const totalIntHon = STATE.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
+  const totalGDoc = STATE.gastosDoc.reduce((s,g)=>s+g.monto,0);
+  const totalIntGDoc = STATE.gastosDoc.reduce((s,g,i)=>s+getInteresRubro(g.intereses,g.monto,'gdoc_'+i),0);
+  const gnd = STATE.gastosNoDoc.monto;
+  const intGnd = getInteresRubro(STATE.gastosNoDoc.intereses, gnd, 'gastosNoDoc');
+
+  const allPagos = [
+    ...c.pagos,
+    ...STATE.honorarios.flatMap(h=>h.pagos),
+    ...STATE.gastosDoc.flatMap(g=>g.pagos),
+    ...STATE.gastosNoDoc.pagos
+  ];
+  const totalPagado = allPagos.reduce((s,p)=>s+p.monto,0);
+
+  const totalPlanilla = c.monto+intCap+totalHon+totalIntHon+totalGDoc+totalIntGDoc+gnd+intGnd-totalPagado;
+
+  let rows='';
+  const tr=(l,v,cls='')=>`<tr class="${cls}"><td>${l}</td><td class="text-end">${v}</td></tr>`;
+  const sep=()=>`<tr><td colspan="2" style="padding:0;border:none"><hr style="margin:4px 0"></td></tr>`;
+  rows+=tr('Capital Inicial', fmt(c.monto));
+  rows+=tr('Interés s/ Capital Inicial', fmt(intCap));
+  rows+=tr('<strong>Subtotal Capital Inicial</strong>', `<strong>${fmt(c.monto+intCap)}</strong>`,'tr-subtotal');
+  rows+=sep();
+  if(STATE.honorarios.length>0){
+    STATE.honorarios.forEach((h,i)=>{
+      rows+=tr(`Honorarios${h.descripcion?' ('+h.descripcion+')':''}`, fmt(h.monto));
+      rows+=tr(`Interés s/ Honorarios${h.descripcion?' ('+h.descripcion+')':''}`, fmt(getInteresRubro(h.intereses,h.monto,'honor_'+i)));
+    });
+    rows+=tr('<strong>Subtotal Honorarios</strong>',`<strong>${fmt(totalHon+totalIntHon)}</strong>`,'tr-subtotal');
+    rows+=sep();
+  }
+  if(STATE.gastosDoc.length>0){
+    STATE.gastosDoc.forEach((g,i)=>{
+      rows+=tr(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}`, fmt(g.monto));
+      if(g.intereses.activo) rows+=tr(`Interés s/ ${g.tipo}`, fmt(getInteresRubro(g.intereses,g.monto,'gdoc_'+i)));
+    });
+    rows+=tr('<strong>Subtotal Gastos Documentados</strong>',`<strong>${fmt(totalGDoc+totalIntGDoc)}</strong>`,'tr-subtotal');
+    rows+=sep();
+  }
+  if(gnd>0){
+    rows+=tr('Gastos No Documentados'+(STATE.gastosNoDoc.descripcion?' ('+STATE.gastosNoDoc.descripcion+')':''), fmt(gnd));
+    if(STATE.gastosNoDoc.intereses.activo) rows+=tr('Interés s/ Gastos No Doc.', fmt(intGnd));
+    rows+=sep();
+  }
+  if(allPagos.length>0){
+    allPagos.forEach(p=>{ rows+=tr(`💳 Pago ${fmtFecha(p.fecha)} — ${PAGO_CONCEPTOS[p.concepto]||p.concepto}${p.foja?' Fs.'+p.foja:''}`,`— ${fmt(p.monto)}`,'tr-pago'); });
+    rows+=sep();
+  }
+  const fechaCalc = c.intereses.fechaFin || STATE.honorarios[0]?.intereses.fechaFin || new Date().toISOString().split('T')[0];
+  rows+=`<tr class="tr-total"><td><strong>TOTAL DE LA PLANILLA AL ${fmtFecha(fechaCalc)}</strong></td><td class="text-end"><strong>${fmt(totalPlanilla)}</strong></td></tr>`;
+
+  document.getElementById('resumenBody').innerHTML = rows;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VALIDACIÓN DE CAMPOS OBLIGATORIOS
+// ═══════════════════════════════════════════════════════════════
+function validarExpediente(){
+  const campos = [
+    {id:'expCirc',nombre:'Circunscripción'},
+    {id:'expFuero',nombre:'Fuero'},
+    {id:'expJuzgado',nombre:'Juzgado'},
+    {id:'expCaratula',nombre:'Carátula'},
+    {id:'expNumero',nombre:'N° Expediente'},
+    {id:'expFecha',nombre:'Fecha de confección'}
+  ];
+  const faltantes = campos.filter(c=>{
+    const el=document.getElementById(c.id);
+    return !el||!el.value.trim();
+  }).map(c=>c.nombre);
+  if(document.getElementById('expFuero').value==='Otro'&&!document.getElementById('expFueroOtro').value.trim())
+    faltantes.push('Especificar fuero');
+  if(faltantes.length>0){
+    showToast('Complete los datos obligatorios del expediente: '+faltantes.join(', '),'error');
+    document.getElementById('secExpte').style.display='';
+    document.getElementById('expCirc').scrollIntoView({behavior:'smooth',block:'start'});
+    return false;
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HISTORIAL
+// ═══════════════════════════════════════════════════════════════
+function getHist(){ try{return JSON.parse(localStorage.getItem('planillasOlivari')||'[]');}catch{return[];} }
+function setHist(d){ localStorage.setItem('planillasOlivari',JSON.stringify(d)); }
+
+function recolectarDatos(){
+  return {
+    id: editId||uid(),
+    ts: new Date().toISOString(),
+    expediente:{
+      circ:document.getElementById('expCirc').value,
+      fuero:document.getElementById('expFuero').value==='Otro'?document.getElementById('expFueroOtro').value:document.getElementById('expFuero').value,
+      juzgado:document.getElementById('expJuzgado').value,
+      caratula:document.getElementById('expCaratula').value,
+      numero:document.getElementById('expNumero').value,
+      fecha:document.getElementById('expFecha').value,
+      operador:document.getElementById('expOperador').value,
+      obs:document.getElementById('expObs').value
+    },
+    capital: JSON.parse(JSON.stringify(STATE.capital)),
+    honorarios: JSON.parse(JSON.stringify(STATE.honorarios)),
+    gastosDoc: JSON.parse(JSON.stringify(STATE.gastosDoc)),
+    gastosNoDoc: JSON.parse(JSON.stringify(STATE.gastosNoDoc))
+  };
+}
+
+function cargarDatos(d){
+  editId = d.id;
+  const e = d.expediente;
+  document.getElementById('expCirc').value = e.circ||'';
+  document.getElementById('expFuero').value = ['Civil y Comercial','Paz'].includes(e.fuero)?e.fuero:'Otro';
+  if(!['Civil y Comercial','Paz'].includes(e.fuero)){
+    document.getElementById('expFueroOtro').value=e.fuero||'';
+    document.getElementById('fueroOtroDiv').style.display='';
+  }
+  document.getElementById('expJuzgado').value=e.juzgado||'';
+  document.getElementById('expCaratula').value=e.caratula||'';
+  document.getElementById('expNumero').value=e.numero||'';
+  document.getElementById('expFecha').value=e.fecha||'';
+  document.getElementById('expOperador').value=e.operador||'';
+  document.getElementById('expObs').value=e.obs||'';
+  STATE.capital=d.capital||STATE.capital;
+  STATE.honorarios=d.honorarios||[];
+  STATE.gastosDoc=d.gastosDoc||[];
+  STATE.gastosNoDoc=d.gastosNoDoc||STATE.gastosNoDoc;
+  renderTodo();
+  showTab('nueva');
+}
+
+function guardarHistorial(){
+  if(!validarExpediente()) return;
+  const d = recolectarDatos();
+  let hist = getHist();
+  const idx = hist.findIndex(h=>h.id===d.id);
+  if(idx>=0) hist[idx]=d; else hist.unshift(d);
+  setHist(hist);
+  editId=d.id;
+  showToast('Planilla guardada en historial.');
+}
+
+function renderHistorial(){
+  const hist = getHist();
+  const lista = document.getElementById('historialLista');
+  if(hist.length===0){lista.innerHTML='<p class="text-muted small">Sin planillas guardadas.</p>';return;}
+  lista.innerHTML = hist.map((h,i)=>{
+    const ts = new Date(h.ts);
+    const fecha = ts.toLocaleDateString('es-AR');
+    const hora = ts.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="hist-card d-flex justify-content-between align-items-start gap-2">
+      <div>
+        <div class="fw-bold" style="color:var(--ol-teal)">${h.expediente.caratula||'(sin carátula)'}</div>
+        <div class="text-muted small">Exp: ${h.expediente.numero||'—'} | ${h.expediente.fuero||'—'} | ${h.expediente.juzgado||'—'}</div>
+        <div class="text-muted small">Fecha: ${fecha} ${hora} | Operador: <strong>${h.expediente.operador||'—'}</strong></div>
+      </div>
+      <div class="d-flex flex-column gap-1">
+        <button class="btn btn-sm text-white" style="background:var(--ol-teal);font-size:.78rem"
+          onclick='cargarDatos(${JSON.stringify(h).replace(/'/g,"&#39;")})'>
+          <i class="bi bi-pencil me-1"></i>Cargar</button>
+        <button class="btn btn-sm btn-outline-danger" style="font-size:.78rem" onclick="eliminarHistorial(${i})">
+          <i class="bi bi-trash me-1"></i>Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function eliminarHistorial(i){
+  if(!confirm('¿Eliminar esta planilla?')) return;
+  const h=getHist(); h.splice(i,1); setHist(h); renderHistorial();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTACIÓN — ENCABEZADO OLIVARI
+// ═══════════════════════════════════════════════════════════════
+function buildHeader(d){
+  const e=d.expediente;
+  return `<div style="font-family:Arial,sans-serif;max-width:168mm;margin:0 auto;background:#fff;padding:10px 16px;">
+    <!-- LOGO OLIVARI -->
+    <div style="text-align:center;padding-bottom:10px;border-bottom:2px solid #4A97A3;margin-bottom:10px">
+      <div style="font-size:2rem;font-weight:900;color:#3D3D3D;letter-spacing:2px">OLIVARI</div>
+      <div style="background:#4A97A3;color:#fff;font-size:.7rem;letter-spacing:2px;padding:3px 14px;display:inline-block;border-radius:3px;margin:3px 0">BIENES RAÍCES — DERECHO E INVERSIONES</div>
+      <div style="font-size:.72rem;color:#888;font-style:italic">Compromiso y profesionalismo</div>
+    </div>
+    <div style="text-align:center;font-size:1.1rem;font-weight:700;color:#2B7A86;letter-spacing:1px;margin-bottom:6px">PRÁCTICA PLANILLA</div>
+    <table style="width:100%;font-size:.78rem;border-collapse:collapse;margin-bottom:8px">
+      <tr><td style="padding:2px 4px;color:#555;width:45%"><strong>Circunscripción:</strong> ${e.circ}</td>
+          <td style="padding:2px 4px;color:#555"><strong>Fuero:</strong> ${e.fuero}</td></tr>
+      <tr><td colspan="2" style="padding:2px 4px;color:#555"><strong>Juzgado:</strong> ${e.juzgado}</td></tr>
+      <tr><td colspan="2" style="padding:2px 4px;color:#555"><strong>Carátula:</strong> ${e.caratula}</td></tr>
+      <tr><td style="padding:2px 4px;color:#555"><strong>Expediente N°:</strong> ${e.numero}</td>
+          <td style="padding:2px 4px;color:#555"><strong>Fecha:</strong> ${fmtFecha(e.fecha)}</td></tr>
+    </table>
+    <hr style="border-color:#d0e8eb;margin:6px 0">`;
+}
+
+function buildItemRow(label,monto,fecha,foja,tasa,d,interes){
+  let r=`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">${label}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${fmtFecha(fecha)}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${foja||''}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(monto)}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${tasa||''}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${d||''}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${interes!=null?fmt(interes):''}</td></tr>`;
+  return r;
+}
+
+function buildExportBody(datos){
+  const c=datos.capital;
+  const intCap=getInteresRubro(c.intereses,c.monto,'capital');
+  const totalHon=datos.honorarios.reduce((s,h)=>s+h.monto,0);
+  const totalIntHon=datos.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
+  const totalGDoc=datos.gastosDoc.reduce((s,g)=>s+g.monto,0);
+  const totalIntGDoc=datos.gastosDoc.reduce((s,g,i)=>s+getInteresRubro(g.intereses,g.monto,'gdoc_'+i),0);
+  const gnd=datos.gastosNoDoc.monto;
+  const intGnd=getInteresRubro(datos.gastosNoDoc.intereses,gnd,'gastosNoDoc');
+  const allPagos=[...c.pagos,...datos.honorarios.flatMap(h=>h.pagos),...datos.gastosDoc.flatMap(g=>g.pagos),...datos.gastosNoDoc.pagos];
+  const totalPagado=allPagos.reduce((s,p)=>s+p.monto,0);
+  const totalPlanilla=c.monto+intCap+totalHon+totalIntHon+totalGDoc+totalIntGDoc+gnd+intGnd-totalPagado;
+  const fechaCalc=c.intereses.fechaFin||new Date().toISOString().split('T')[0];
+
+  const thStyle='background:#2B7A86;color:#fff;padding:4px 6px;font-size:.72rem;border:1px solid #d0e8eb;';
+  const subtotalStyle='background:#E8F5F7;font-weight:600;';
+  const totalStyle='background:#2B7A86;color:#fff;font-weight:700;font-size:.9rem;';
+  const pagoStyle='color:#C94B3D;font-size:.78rem;';
+
+  let html=`<table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:8px">
+    <thead><tr>
+      <th style="${thStyle}">Concepto</th><th style="${thStyle}">Fecha</th><th style="${thStyle}">Fs.</th>
+      <th style="${thStyle}">Monto</th><th style="${thStyle}">Tasa</th><th style="${thStyle}">Días</th>
+      <th style="${thStyle}">Interés</th>
+    </tr></thead><tbody>`;
+
+  // Capital
+  const intCapInfo=c.intereses.resultado||calcInteresesFijos(c.monto,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin);
+  html+=buildItemRow('Capital Inicial',c.monto,c.fecha,c.foja,c.intereses.activo?TASA_LABEL[c.intereses.tipoTasa]:null,c.intereses.activo?intCapInfo?.dias:null,c.intereses.activo?intCap:null);
+  if(c.intereses.activo){
+    const periodos=calcularPeriodos(c.monto,c.pagos.filter(p=>p.concepto==='capital'),c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin);
+    if(periodos.length>1) periodos.forEach((p,i)=>{
+      html+=`<tr style="font-size:.72rem"><td style="padding:2px 4px 2px 20px;border:1px solid #d0e8eb;color:#555">↳ Período ${i+1}</td>
+        <td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:center">${fmtFecha(p.desde)}→${fmtFecha(p.hasta)}</td>
+        <td></td><td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:right">${fmt(p.capital)}</td>
+        <td></td><td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:center">${p.dias}</td>
+        <td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:right">${p.interes!=null?fmt(p.interes):'—'}</td></tr>`;
+    });
+  }
+  c.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
+    <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
+    <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
+    <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
+    <td colspan="3"></td></tr>`);
+  html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Capital Inicial + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(c.monto+intCap)}</strong></td></tr>`;
+
+  // Honorarios
+  if(datos.honorarios.length>0){
+    datos.honorarios.forEach((h,i)=>{
+      const intH=getInteresRubro(h.intereses,h.monto,'honor_'+i);
+      const intHInfo=h.intereses.resultado||calcInteresesFijos(h.monto,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin);
+      html+=buildItemRow(`Honorarios${h.descripcion?' — '+h.descripcion:''}`,h.monto,h.fecha,h.foja,h.intereses.activo?TASA_LABEL[h.intereses.tipoTasa]:null,h.intereses.activo?intHInfo?.dias:null,h.intereses.activo?intH:null);
+      h.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
+        <td colspan="3"></td></tr>`);
+    });
+    html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Honorarios + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(totalHon+totalIntHon)}</strong></td></tr>`;
+  }
+
+  // Gastos doc
+  if(datos.gastosDoc.length>0){
+    datos.gastosDoc.forEach((g,i)=>{
+      const intG=getInteresRubro(g.intereses,g.monto,'gdoc_'+i);
+      const intGInfo=g.intereses.resultado||calcInteresesFijos(g.monto,g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.fechaInicio,g.intereses.fechaFin);
+      html+=buildItemRow(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}`,g.monto,g.fecha,g.foja,g.intereses.activo?TASA_LABEL[g.intereses.tipoTasa]:null,g.intereses.activo?intGInfo?.dias:null,g.intereses.activo?intG:null);
+      g.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
+        <td colspan="3"></td></tr>`);
+    });
+    html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Gastos Documentados + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(totalGDoc+totalIntGDoc)}</strong></td></tr>`;
+  }
+
+  // Gastos no doc
+  if(gnd>0){
+    html+=buildItemRow(`Gastos No Documentados${datos.gastosNoDoc.descripcion?' — '+datos.gastosNoDoc.descripcion:''}`,gnd,datos.gastosNoDoc.fecha,datos.gastosNoDoc.foja,datos.gastosNoDoc.intereses.activo?TASA_LABEL[datos.gastosNoDoc.intereses.tipoTasa]:null,null,datos.gastosNoDoc.intereses.activo?intGnd:null);
+    datos.gastosNoDoc.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
+      <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
+      <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
+      <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
+      <td colspan="3"></td></tr>`);
+  }
+
+  // RESUMEN FINAL
+  html+=`</tbody></table>
+  <table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px">
+    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Capital Inicial</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(c.monto)}</td></tr>
+    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Capital Inicial</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(intCap)}</td></tr>
+    ${totalHon>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Honorarios</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalHon)}</td></tr>
+    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Honorarios</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalIntHon)}</td></tr>`:''}
+    ${totalGDoc>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Gastos Documentados</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalGDoc)}</td></tr>
+    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Gastos Doc.</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalIntGDoc)}</td></tr>`:''}
+    ${gnd>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Gastos No Documentados</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(gnd)}</td></tr>`:''}
+    ${totalPagado>0?`<tr style="${pagoStyle}"><td style="padding:3px 6px;border:1px solid #eee">Pagos parciales imputados</td><td style="padding:3px 6px;border:1px solid #eee;text-align:right">— ${fmt(totalPagado)}</td></tr>`:''}
+    <tr style="${totalStyle}"><td style="padding:6px;border:1px solid #2B7A86"><strong>TOTAL DE LA PLANILLA AL ${fmtFecha(fechaCalc)}</strong></td>
+      <td style="padding:6px;border:1px solid #2B7A86;text-align:right;font-size:1rem"><strong>${fmt(totalPlanilla)}</strong></td></tr>
+  </table></div>`;
+  return html;
+}
+
+function buildPrintHTML(){
+  const d = recolectarDatos();
+  return buildHeader(d) + buildExportBody(d);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTAR EXCEL
+// ═══════════════════════════════════════════════════════════════
+function exportarExcel(){
+  if(!validarExpediente()) return;
+  const d = recolectarDatos();
+  const e = d.expediente;
+  const c = d.capital;
+  const intCap = getInteresRubro(c.intereses,c.monto,'capital');
+  const totalHon = d.honorarios.reduce((s,h)=>s+h.monto,0);
+  const totalIntHon = d.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
+  const totalGDoc = d.gastosDoc.reduce((s,g)=>s+g.monto,0);
+  const gnd=d.gastosNoDoc.monto;
+  const intGnd=getInteresRubro(d.gastosNoDoc.intereses,gnd,'gastosNoDoc');
+  const allPagos=[...c.pagos,...d.honorarios.flatMap(h=>h.pagos),...d.gastosDoc.flatMap(g=>g.pagos),...d.gastosNoDoc.pagos];
+  const totalPagado=allPagos.reduce((s,p)=>s+p.monto,0);
+  const total=c.monto+intCap+totalHon+totalIntHon+totalGDoc+gnd+intGnd-totalPagado;
+
+  const rows=[
+    ['PRÁCTICA PLANILLA — OLIVARI Bienes Raíces y Derecho'],
+    ['Circunscripción:',e.circ,'Fuero:',e.fuero],['Juzgado:',e.juzgado],
+    ['Carátula:',e.caratula],['Expediente:',e.numero,'Fecha:',fmtFecha(e.fecha)],[],
+    ['CONCEPTO','FECHA','Fs.','MONTO ($)','TASA','DÍAS','INTERÉS ($)'],
+    ['Capital Inicial',fmtFecha(c.fecha),c.foja,c.monto,c.intereses.activo?TASA_LABEL[c.intereses.tipoTasa]:'',c.intereses.activo?getInteresRubro(c.intereses,c.monto,'capital')/c.monto*365:'',c.intereses.activo?intCap:''],
+    ...c.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','','']),
+    ['Subtotal Capital','','','','',' ',c.monto+intCap],[],
+    ...d.honorarios.flatMap((h,i)=>[
+      [h.descripcion||'Honorarios',fmtFecha(h.fecha),h.foja,h.monto,h.intereses.activo?TASA_LABEL[h.intereses.tipoTasa]:'','',h.intereses.activo?getInteresRubro(h.intereses,h.monto,'honor_'+i):''],
+      ...h.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','',''])
+    ]),
+    totalHon>0?['Subtotal Honorarios','','','',' ',' ',totalHon+totalIntHon]:[],
+    ...d.gastosDoc.flatMap((g,i)=>[
+      [g.tipo+(g.descripcion?' — '+g.descripcion:''),fmtFecha(g.fecha),g.foja,g.monto,g.intereses.activo?TASA_LABEL[g.intereses.tipoTasa]:'','',g.intereses.activo?getInteresRubro(g.intereses,g.monto,'gdoc_'+i):''],
+      ...g.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','',''])
+    ]),
+    gnd>0?['Gastos No Documentados'+(d.gastosNoDoc.descripcion?' — '+d.gastosNoDoc.descripcion:''),fmtFecha(d.gastosNoDoc.fecha),d.gastosNoDoc.foja,gnd,'','',d.gastosNoDoc.intereses.activo?intGnd:'']:[],
+    totalPagado>0?['Total pagos imputados','','','',' ',' ',-totalPagado]:[],
+    [],[`TOTAL DE LA PLANILLA AL ${fmtFecha(c.intereses.fechaFin||'')}`,'',' ','','','',total]
+  ].filter(r=>r&&r.length>0);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:40},{wch:12},{wch:8},{wch:14},{wch:28},{wch:8},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Planilla Judicial');
+  XLSX.writeFile(wb,`PlanillaJudicial_${(e.numero||'SN').replace(/\//g,'-')}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTAR PDF
+// ═══════════════════════════════════════════════════════════════
+async function exportarPDF(){
+  if(!validarExpediente()) return;
+  const pa=document.getElementById('printArea');
+  pa.innerHTML=`<div style="width:794px;padding:28px 30px;background:#fff">${buildPrintHTML()}</div>`;
+  pa.style.display='block';
+  const canvas=await html2canvas(pa.querySelector('div'),{scale:2,useCORS:true,backgroundColor:'#fff'});
+  pa.style.display='none';
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+  const margin=10;
+  const imgW=pw-margin*2;
+  const imgH=(canvas.height*imgW)/canvas.width;
+  let pos=margin, remaining=imgH;
+  pdf.addImage(canvas.toDataURL('image/png'),'PNG',margin,pos,imgW,imgH);
+  while(remaining>ph-margin*2){remaining-=ph-margin*2;pdf.addPage();pdf.addImage(canvas.toDataURL('image/png'),'PNG',margin,margin-remaining,imgW,imgH);}
+  const d=recolectarDatos();
+  pdf.save(`PlanillaJudicial_${(d.expediente.numero||'SN').replace(/\//g,'-')}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTAR IMAGEN
+// ═══════════════════════════════════════════════════════════════
+async function exportarImagen(){
+  if(!validarExpediente()) return;
+  const pa=document.getElementById('printArea');
+  pa.innerHTML=`<div style="width:794px;padding:28px 30px;background:#fff">${buildPrintHTML()}</div>`;
+  pa.style.display='block';
+  const canvas=await html2canvas(pa.querySelector('div'),{scale:2,useCORS:true,backgroundColor:'#fff'});
+  pa.style.display='none';
+  const a=document.createElement('a');
+  const d=recolectarDatos();
+  a.download=`PlanillaJudicial_${(d.expediente.numero||'SN').replace(/\//g,'-')}.png`;
+  a.href=canvas.toDataURL('image/png');
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIMPIAR
+// ═══════════════════════════════════════════════════════════════
+function limpiarTodo(){
+  if(!confirm('¿Limpiar todos los campos? Los datos no guardados se perderán.')) return;
+  editId=null;
+  STATE={capital:{monto:0,fecha:'',foja:'',obs:'',intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},pagos:[]},honorarios:[],gastosDoc:[],gastosNoDoc:{monto:0,descripcion:'',fecha:'',foja:'',obs:'',intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},pagos:[]}};
+  ['expCirc','expFuero','expJuzgado','expCaratula','expNumero','expOperador','expObs','expFueroOtro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('expFecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('fueroOtroDiv').style.display='none';
+  renderTodo();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER TODO
+// ═══════════════════════════════════════════════════════════════
+function renderTodo(){
+  renderCapital();
+  renderHonorarios();
+  renderGastosDoc();
+  renderGastosNoDoc();
+  recalcular();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('expFecha').value = new Date().toISOString().split('T')[0];
+  // Contraseña
+  if(!sessionStorage.getItem('planillaAuth')){
+    new bootstrap.Modal(document.getElementById('modalPassword'),{backdrop:'static',keyboard:false}).show();
+  }
+  // Render inicial
+  renderTodo();
+});
+</script>
+</body>
+</html>
