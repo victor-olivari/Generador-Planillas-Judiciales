@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Generador de Planillas Judiciales — OLIVARI</title>
+<title>Generador de Planillas Judiciales</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
@@ -62,7 +63,18 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 .badge-dias{background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:10px;}
 /* PRINT AREA */
 #printArea{display:none;}
-@media print{body>*:not(#printArea){display:none!important;}#printArea{display:block!important;}}
+@media print{
+  body>*:not(#printArea){display:none!important;}
+  #printArea{display:block!important;}
+  @page{margin:20mm 20mm;size:A4 portrait;}
+  #printArea table{font-size:.68rem!important;page-break-inside:auto;}
+  #printArea th,#printArea td{padding:2px 4px!important;}
+  #printArea thead{display:table-header-group;}
+  #printArea tr{page-break-inside:avoid;page-break-after:auto;}
+  #printArea div[style*="font-size:2rem"]{font-size:1rem!important;}
+  #printArea div[style*="font-size:1rem"]{font-size:.85rem!important;}
+  #printArea div[style*="margin-top:18px"]{margin-top:6px!important;}
+}
 /* Collapsible arrow */
 .collapse-icon{transition:transform .2s;}
 .collapsed .collapse-icon{transform:rotate(-90deg);}
@@ -109,9 +121,12 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 <nav class="navbar navbar-ol px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
   <div>
     <div class="brand-title"><i class="bi bi-journal-richtext me-2"></i>Generador de Planillas Judiciales</div>
-    <div class="brand-sub">Powered by OLIVARI — Bienes Raíces y Derecho</div>
+    <div class="brand-sub">Elaborado por Dr. Victor Olivari · Abogado · M.P. 5081</div>
   </div>
-  <span class="badge-tasas"><i class="bi bi-link-45deg me-1"></i>Tasas: Extraídas del sitio del Poder Judicial del Chaco</span>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge-tasas"><i class="bi bi-link-45deg me-1"></i>Tasas: PJ Chaco (automático)</span>
+    <button class="btn btn-sm text-white" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:.75rem;padding:3px 10px" onclick="abrirConfigWorker()" title="Configurar proxy automático de tasas"><i class="bi bi-gear me-1"></i>Configurar Worker</button>
+  </div>
 </nav>
 
 <!-- MAIN -->
@@ -280,71 +295,48 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
   </div>
 </div>
 
-<!-- MODAL FALLBACK MANUAL (cuando el proxy falla) -->
-<div class="modal fade" id="modalFallback" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+<!-- MODAL CONFIGURACIÓN CLOUDFLARE WORKER -->
+<div class="modal fade" id="modalWorkerConfig" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content border-0 shadow">
       <div class="modal-header" style="background:var(--ol-teal);color:#fff;">
-        <h6 class="modal-title mb-0"><i class="bi bi-calculator me-2"></i>Ingresar interés manualmente</h6>
+        <h6 class="modal-title mb-0"><i class="bi bi-gear me-2"></i>Configuración — Proxy Automático (Cloudflare Worker)</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <!-- Info de conexión -->
-        <div class="alert alert-warning py-2 small mb-3">
-          <i class="bi bi-wifi-off me-1"></i>
-          <strong>No se pudo conectar automáticamente al PJ Chaco.</strong><br>
-          Esto ocurre cuando el archivo se abre directamente como <code>file://</code> y el navegador bloquea las conexiones externas.
-          <div class="mt-2">
-            <strong>Solución permanente:</strong> ejecute este comando en la Terminal y abra
-            <code>http://localhost:8080/planilla-judicial.html</code>:<br>
-            <code style="background:#f8f9fa;padding:3px 8px;border-radius:4px;display:inline-block;margin-top:4px;font-size:.8rem">
-              cd "/Users/victorolivari/Mi unidad/Estudio Jurídico/SIstema de planillas" &amp;&amp; python3 -m http.server 8080
-            </code>
+        <div class="alert alert-info py-2 small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Para consultar tasas automáticamente del PJ Chaco es necesario configurar un <strong>Cloudflare Worker gratuito</strong> que actúa como proxy. Se configura una sola vez y queda guardado.
+        </div>
+
+        <div class="mb-3">
+          <div class="fw-bold mb-2" style="color:var(--ol-teal)"><span class="badge bg-secondary me-1">1</span> Crear el Worker en Cloudflare (gratis, 2 minutos)</div>
+          <ol class="small mb-2 ps-3">
+            <li>Ir a <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--ol-teal)">workers.cloudflare.com</a> y crear cuenta gratuita (o iniciar sesión)</li>
+            <li>Hacer clic en <strong>"Create a Worker"</strong></li>
+            <li>Borrar todo el código de ejemplo y pegar el código de abajo</li>
+            <li>Hacer clic en <strong>"Save and Deploy"</strong></li>
+          </ol>
+          <div class="position-relative">
+            <pre id="workerCodePre" style="background:#1e1e1e;color:#d4d4d4;padding:.8rem;border-radius:6px;font-size:.7rem;max-height:240px;overflow-y:auto;white-space:pre;margin:0"></pre>
+            <button class="btn btn-sm btn-outline-light" style="position:absolute;top:6px;right:6px;font-size:.7rem;padding:2px 10px" onclick="copiarWorkerCode()"><i class="bi bi-clipboard me-1"></i>Copiar código</button>
           </div>
         </div>
 
-        <!-- Datos del cálculo -->
-        <div class="mb-3 p-2 rounded" style="background:#f0f7f8;font-size:.85rem;">
-          <strong>Tasa:</strong> <span id="modalFallbackTitulo"></span><br>
-          <span id="modalFallbackDatos"></span>
-        </div>
-
-        <!-- Link al PJ -->
-        <div class="mb-3 text-center">
-          <a id="modalFallbackLink" href="#" target="_blank" class="btn btn-sm text-white"
-             style="background:var(--ol-teal)">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Abrir Calculadora del PJ Chaco
-          </a>
-          <div class="text-muted mt-1" style="font-size:.72rem">
-            Ingrese los mismos datos allí, obtenga el resultado y cópielo abajo.
+        <div class="mb-2">
+          <div class="fw-bold mb-2" style="color:var(--ol-teal)"><span class="badge bg-secondary me-1">2</span> Pegar la URL del Worker aquí</div>
+          <div class="small text-muted mb-2">Cloudflare asignará una URL del tipo <code>https://mi-worker.usuario.workers.dev</code>. Ingrésela aquí y guárdela:</div>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+            <input type="url" id="workerUrlInput" class="form-control" placeholder="https://mi-worker.usuario.workers.dev">
+            <button class="btn text-white" style="background:var(--ol-teal)" onclick="guardarWorkerUrl()"><i class="bi bi-floppy me-1"></i>Guardar</button>
           </div>
-        </div>
-
-        <!-- Campos manuales -->
-        <div class="row g-2">
-          <div class="col-md-5">
-            <label class="form-label-sm req-star">Interés obtenido ($)</label>
-            <input type="text" id="modalFallbackInteresInput" class="form-control form-control-sm"
-                   placeholder="Ej: 60,33" inputmode="decimal">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label-sm">Días calculados</label>
-            <input type="number" id="modalFallbackDiasInput" class="form-control form-control-sm" placeholder="Ej: 367">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label-sm">Tasa aplicada (%)</label>
-            <input type="text" id="modalFallbackTasaInput" class="form-control form-control-sm" placeholder="Ej: 6.0329%">
-          </div>
-        </div>
-        <div id="modalFallbackError" class="text-danger small mt-2" style="display:none">
-          <i class="bi bi-exclamation-circle me-1"></i>Ingrese el importe del interés.
+          <div id="workerUrlStatus" class="small mt-2"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-        <button id="modalFallbackConfirm" class="btn btn-sm text-white" style="background:var(--ol-teal)">
-          <i class="bi bi-check-circle me-1"></i>Confirmar interés
-        </button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+        <button class="btn btn-sm text-white" style="background:var(--ol-teal)" onclick="probarWorker()"><i class="bi bi-wifi me-1"></i>Probar conexión</button>
       </div>
     </div>
   </div>
@@ -354,7 +346,7 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 <div id="printArea"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
@@ -362,8 +354,6 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 // CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════
 const PASSWORD = '2026';
-const PJ_URL = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
-const CORS_PROXY = 'https://corsproxy.io/?';
 
 const TIPO_TASA_OPCIONES = [
   {group:'Tasas Fijas (TNA)', opts:[
@@ -379,6 +369,29 @@ const TIPO_TASA_OPCIONES = [
 ];
 const TASA_LABEL = {};
 TIPO_TASA_OPCIONES.forEach(g=>g.opts.forEach(o=>TASA_LABEL[o.v]=o.l));
+const TASA_ABREV = {
+  'variable:2':'Activa 30 d. BNA','variable:7':'Activa ×1,5 BNA',
+  'variable:14':'Alim. Art.552 CCCN','variable:15':'TIM BCRA','variable:1':'Pasiva BCRA',
+  'fija:0.06':'TNA fija','fija:0.08':'TNA fija','fija:0.24':'TNA fija',
+  'fija:0.32':'TNA fija','fija:0.36':'TNA fija','fija:0.48':'TNA fija','fija:0.56':'TNA fija',
+  'pactada':'Pactada'
+};
+function fmtTasaExport(tipoTasa, tasaPct, resultStr, hideAb=false){
+  const ab = hideAb ? '' : (TASA_ABREV[tipoTasa]||'');
+  const tna = getTNAFija(tipoTasa, tasaPct);
+  let pct;
+  if(resultStr){ const n=parseFloat(resultStr); pct=!isNaN(n)?n.toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':resultStr; }
+  else { pct=tna!==null?(tna*100).toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':''; }
+  return `<span style="font-size:.72rem;font-weight:600">${pct}</span>${ab?`<br><span style="font-size:.6rem;color:#444">${ab}</span>`:''}`;
+}
+function fmtTasaXL(tipoTasa, tasaPct, resultStr, hideAb=false){
+  const ab = hideAb ? '' : (TASA_ABREV[tipoTasa]||'');
+  const tna = getTNAFija(tipoTasa, tasaPct);
+  let pct;
+  if(resultStr){ const n=parseFloat(resultStr); pct=!isNaN(n)?n.toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':resultStr; }
+  else { pct=tna!==null?(tna*100).toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':''; }
+  return pct+(ab?'\n'+ab:'');
+}
 
 const GASTOS_DOC_TIPOS = ['Oficio','Tasa de Justicia','Sellado','Cédula','Pericia','Otro'];
 
@@ -456,7 +469,9 @@ function onFueroChange(){
 // UTILIDADES
 // ═══════════════════════════════════════════════════════════════
 const fmt = n => n!=null&&!isNaN(n) ? '$'+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+const fmtUMA = v => parseFloat(v.toFixed(8)).toLocaleString('es-AR',{maximumFractionDigits:8});
 const fmtFecha = iso => { if(!iso)return'—'; const[y,m,d]=iso.split('-'); return`${d}/${m}/${y}`; };
+const calcUMAsRestantes = (h) => { const pagados=(h.pagos||[]).filter(p=>p.concepto==='honorarios'&&p.monto>0).reduce((s,p)=>s+p.monto/(p.valorUMAalPago||h.valorUMA),0); return Math.max(0,(h.cantUMA||0)-pagados); };
 const isoToDD = iso => { if(!iso)return''; const[y,m,d]=iso.split('-'); return`${d}-${m}-${y}`; };
 const dias = (d1,d2) => Math.max(0,Math.round((new Date(d2)-new Date(d1))/86400000));
 const uid = () => Date.now()+Math.random().toString(36).slice(2,7);
@@ -494,89 +509,212 @@ function showToast(msg, tipo='success'){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// API PODER JUDICIAL CHACO — con múltiples proxies y fallback
+// CONFIGURACIÓN CLOUDFLARE WORKER
 // ═══════════════════════════════════════════════════════════════
+const WORKER_CODE = `export default {
+  async fetch(request) {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST',
+        'Access-Control-Allow-Headers': '*',
+      }});
+    }
 
-// Lista de proxies CORS a intentar en orden
-// Content-Type: application/x-www-form-urlencoded es una "simple request"
-// (no dispara preflight OPTIONS), lo que permite funcionar desde file://
-const CORS_PROXIES_LIST = [
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://cors-anywhere.herokuapp.com/${u}`,
-  u => `https://thingproxy.freeboard.io/fetch/${u}`
-];
+    function getField(html, name) {
+      const re = new RegExp('<input[^>]+name=["\\'']' + name + '["\\''][^>]*>', 'i');
+      const tag = html.match(re)?.[0] || '';
+      return tag.match(/value=["'']([^"'']*)/i)?.[1] || '';
+    }
 
-function buildFormBody(capital, tipoId, desde, hasta, tasaPactada, session=''){
-  return new URLSearchParams({
+    const url = new URL(request.url);
+    const p = Object.fromEntries(url.searchParams);
+    const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
+
+    let phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
+    try {
+      const getResp = await fetch(pjUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'es-AR,es;q=0.9',
+        }
+      });
+      const setCookie = getResp.headers.get('set-cookie') || '';
+      phpsessid = setCookie.match(/PHPSESSID=([^;,\\s]+)/)?.[1] || '';
+      const html = await getResp.text();
+      sess = getField(html, 'script_case_session') || phpsessid;
+      scInit = getField(html, 'script_case_init');
+      csrf = getField(html, 'csrf_token');
+      campofuente = getField(html, 'campofuente');
+    } catch(e) {
+      return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
+    }
+
+    const formData = new URLSearchParams({
+      importe: p.importe || '1000',
+      id_tipo_tasa: p.id_tipo_tasa || '1',
+      desde: p.desde || '01-01-2024',
+      hasta: p.hasta || '31-12-2024',
+      tasa_pactada: p.tasa_pactada || '0',
+      resultados: '',
+      nmgp_opcao: 'alterar',
+      nm_form_submit: '1',
+      nmgp_parms: '',
+      nmgp_url_saida: '',
+      nmgp_ancora: '',
+      nmgp_num_form: '',
+      script_case_session: sess,
+      script_case_init: scInit,
+      csrf_token: csrf,
+      campofuente: campofuente,
+      bok: 'OK',
+    });
+
+    let resultHtml = '';
+    try {
+      const postResp = await fetch(pjUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': \`PHPSESSID=\${phpsessid || sess}\`,
+          'Referer': pjUrl,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'es-AR,es;q=0.9',
+          'Origin': 'https://www.justiciachaco.gov.ar',
+        },
+        body: formData.toString(),
+      });
+      resultHtml = await postResp.text();
+    } catch(e) {
+      return Response.json({ error: 'POST fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
+    }
+
+    const taMatch = resultHtml.match(/<textarea[^>]*name="resultados"[^>]*>([\\s\\S]*?)<\\/textarea>/i);
+    const resultText = taMatch?.[1]?.trim() || '';
+    const interesMatch = resultText.match(/Intereses:\\s*\\$([0-9.,]+)/);
+    const tasaMatch = resultText.match(/Tasa:\\s*([0-9.,]+)%/);
+    const diasMatch = resultText.match(/D.as del Per.odo calculado:\\s*([0-9]+)/);
+
+    if (!interesMatch) {
+      return Response.json({
+        error: 'Sin resultado',
+        sess: sess ? 'ok' : 'vacio',
+        csrf: csrf ? 'ok' : 'vacio',
+        debug: resultText.substring(0, 200),
+      }, { headers: { 'Access-Control-Allow-Origin': '*' }});
+    }
+
+    const interes = parseFloat(interesMatch[1].replace(/\\./g, '').replace(',', '.'));
+    return Response.json({
+      interes,
+      tasa: tasaMatch ? tasaMatch[1] + '%' : null,
+      dias: diasMatch ? parseInt(diasMatch[1]) : null,
+    }, { headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' }});
+  }
+  // ── UMA: obtener valor vigente de la UMA (CSJN) ──
+  if(p.accion === 'uma') {
+    try {
+      // Intentar buscar valor de UMA en resoluciones del CSJN
+      const csjnResp = await fetch('https://www.csjn.gov.ar/novedades/noticias', {
+        headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
+      });
+      const csjnHtml = await csjnResp.text();
+      // Buscar link a noticia con "UMA" en el texto
+      const linkMatch = csjnHtml.match(/href="(\/novedades\/detalle\/\d+)"[^>]*>(?:[^<]|\n){0,200}UMA/i);
+      if(linkMatch) {
+        const detailResp = await fetch('https://www.csjn.gov.ar' + linkMatch[1], {
+          headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
+        });
+        const dHtml = await detailResp.text();
+        // Buscar "suma de $XX.XXX" o "$XX.XXX" cerca de UMA
+        const valMatch = dHtml.match(/(?:suma de \$|UMA[^$]*\$)\s*([\d.]+)/i) ||
+                         dHtml.match(/\$\s*([\d.]+)(?:[^%\d])/);
+        if(valMatch) {
+          const valor = parseInt(valMatch[1].replace(/\./g,''));
+          if(valor > 10000 && valor < 100000000) {
+            return Response.json({valor, ok:true, fuente:'csjn'}, {
+              headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=3600'}
+            });
+          }
+        }
+      }
+    } catch(e) { /* fallthrough to default */ }
+    // Valor por defecto: $92.482 — CSJN Res.SGA N° 538/2026 (desde 01/02/2026)
+    return Response.json({valor: 92482, ok:true, fuente:'default'}, {
+      headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}
+    });
+  }
+
+};`;
+
+function getWorkerUrl(){
+  return localStorage.getItem('pjWorkerUrl')||'';
+}
+
+function abrirConfigWorker(){
+  document.getElementById('workerCodePre').textContent = WORKER_CODE;
+  document.getElementById('workerUrlInput').value = getWorkerUrl();
+  const url = getWorkerUrl();
+  document.getElementById('workerUrlStatus').innerHTML = url
+    ? `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Worker configurado: <code>${url}</code></span>`
+    : '<span class="text-muted">No configurado aún.</span>';
+  new bootstrap.Modal(document.getElementById('modalWorkerConfig')).show();
+}
+
+function guardarWorkerUrl(){
+  const url = document.getElementById('workerUrlInput').value.trim().replace(/\/+$/, '');
+  if(!url){
+    document.getElementById('workerUrlStatus').innerHTML='<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Ingrese una URL válida.</span>';
+    return;
+  }
+  localStorage.setItem('pjWorkerUrl', url);
+  document.getElementById('workerUrlStatus').innerHTML=`<span class="text-success"><i class="bi bi-check-circle me-1"></i>Guardado: <code>${url}</code></span>`;
+  showToast('URL del Worker guardada.');
+}
+
+function copiarWorkerCode(){
+  navigator.clipboard.writeText(WORKER_CODE).then(()=>showToast('Código copiado al portapapeles.'));
+}
+
+async function probarWorker(){
+  const url = getWorkerUrl();
+  if(!url){ showToast('Configure primero la URL del Worker.','warning'); return; }
+  const statusEl = document.getElementById('workerUrlStatus');
+  statusEl.innerHTML='<span class="text-muted"><span class="spin" style="border-color:rgba(0,0,0,.15);border-top-color:#555;display:inline-block"></span> Probando conexión...</span>';
+  try{
+    const res = await fetch(`${url}?importe=1000&id_tipo_tasa=1&desde=01-01-2024&hasta=31-12-2024&tasa_pactada=0`);
+    const data = await res.json();
+    if(data.interes){
+      statusEl.innerHTML=`<span class="text-success"><i class="bi bi-check-circle me-1"></i>¡Conexión exitosa! T.Pasiva BCRA 2024 → Tasa: ${data.tasa||'?'} | Interés: $${Number(data.interes).toLocaleString('es-AR',{minimumFractionDigits:2})}</span>`;
+    } else {
+      statusEl.innerHTML=`<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Worker respondió sin resultado. Debug: ${JSON.stringify(data).substring(0,120)}</span>`;
+    }
+  } catch(e){
+    statusEl.innerHTML=`<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Error de conexión: ${e.message}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API PODER JUDICIAL CHACO — vía Cloudflare Worker
+// ═══════════════════════════════════════════════════════════════
+async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
+  const workerUrl = getWorkerUrl();
+  if(!workerUrl) throw new Error('WORKER_NOT_CONFIGURED');
+  const params = new URLSearchParams({
     importe: String(capital),
     id_tipo_tasa: String(tipoId),
     desde, hasta,
-    tasa_pactada: String(tasaPactada||0),
-    script_case_session: session,
-    nmgp_parms: '', nmgp_outra_jan: ''
-  }).toString();
-}
-
-async function intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, session){
-  // POST simple (Content-Type urlencoded = sin preflight, funciona desde file://)
-  const res = await fetch(proxyUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: buildFormBody(capital, tipoId, desde, hasta, tasaPactada, session)
+    tasa_pactada: String(tasaPactada||0)
   });
-  if(!res.ok) return null;
-  const html = await res.text();
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const ta = doc.querySelector('[name=resultados]') || doc.querySelector('textarea');
-  if(ta?.value?.includes('Intereses:')) return parsePJResult(ta.value);
-  return null;
+  const res = await fetch(`${workerUrl}?${params}`);
+  if(!res.ok) throw new Error(`Worker HTTP ${res.status}`);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error + (data.debug ? ` — ${data.debug.substring(0,80)}` : ''));
+  return { interes: data.interes, tasa: data.tasa, dias: data.dias, rawText: '' };
 }
 
-async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
-  let lastErr = '';
-  for(const proxyFn of CORS_PROXIES_LIST){
-    const proxyUrl = proxyFn(PJ_URL);
-    try{
-      // Intento 1: POST directo sin sesión
-      const r1 = await intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, '');
-      if(r1) return r1;
-
-      // Intento 2: GET para obtener sesión → POST con sesión
-      // Sin cabeceras custom para evitar preflight
-      const getRes = await fetch(proxyUrl);
-      if(getRes.ok){
-        const getHtml = await getRes.text();
-        const getDoc = new DOMParser().parseFromString(getHtml,'text/html');
-        const session = getDoc.querySelector('[name=script_case_session]')?.value || '';
-        const r2 = await intentarPost(proxyUrl, capital, tipoId, desde, hasta, tasaPactada, session);
-        if(r2) return r2;
-      }
-    } catch(e){
-      lastErr = e.message;
-      continue; // Probar con el siguiente proxy
-    }
-  }
-
-  // Todos los proxies fallaron → lanzar error descriptivo
-  throw new Error(
-    'No se pudo conectar con el servidor del PJ Chaco. ' +
-    'Posible causa: el archivo se abre como file:// y el navegador bloquea conexiones externas. ' +
-    'Solución: abra el archivo desde un servidor local (ver instrucciones abajo) o ingrese el interés manualmente. ' +
-    'Detalle técnico: ' + lastErr
-  );
-}
-
-function parsePJResult(text){
-  const interesM = text.match(/Intereses:\s*\$([0-9.,]+)/);
-  const tasaM = text.match(/Tasa:\s*([0-9.,]+)%/g);
-  const diasM = text.match(/Días del Período calculado:\s*([0-9]+)/);
-  if(!interesM) return null;
-  const interes = parseFloat(interesM[1].replace(/\./g,'').replace(',','.'));
-  const tasa = tasaM && tasaM[1] ? tasaM[1] : (tasaM&&tasaM.length>0?tasaM[tasaM.length-1]:null);
-  const d = diasM ? parseInt(diasM[1]) : null;
-  return {interes, tasa, dias:d, rawText:text};
-}
 
 // ═══════════════════════════════════════════════════════════════
 // CÁLCULO DE PERÍODOS (pagos parciales)
@@ -621,9 +759,9 @@ function renderCapital(){
           onchange="STATE.capital.monto=parseFloat(this.value)||0;recalcular()">
       </div>
       <div class="col-md-2">
-        <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
-        <input type="date" class="form-control form-control-sm" value="${c.fecha||''}"
-          onchange="STATE.capital.fecha=this.value">
+        <label class="form-label-sm req-star">Fecha sentencia</label>
+        <input type="date" class="form-control form-control-sm" value="${c.fecha||''}" required
+          onchange="STATE.capital.fecha=this.value;if(!STATE.capital.intereses.fechaInicio){STATE.capital.intereses.fechaInicio=this.value;}renderCapital();recalcular()">
       </div>
       <div class="col-md-2">
         <label class="form-label-sm">Fs. <span class="fs-label">opc.</span></label>
@@ -679,8 +817,12 @@ function renderInteresesBox(rubroKey, int, periodos){
       </div>
       <div class="col-md-3">
         <label class="form-label-sm">Fecha cierre / cálculo</label>
-        <input type="date" class="form-control form-control-sm" value="${int.fechaFin||''}"
-          onchange="setInteresField('${rubroKey}','fechaFin',this.value);recalcular()">
+        <div class="d-flex gap-1 align-items-center">
+          <input type="date" class="form-control form-control-sm" value="${int.fechaFin||''}"
+            onchange="setInteresField('${rubroKey}','fechaFin',this.value);recalcular()">
+          <button class="btn btn-outline-secondary btn-sm" style="white-space:nowrap;font-size:.7rem;padding:2px 6px"
+            onclick="setInteresField('${rubroKey}','fechaFin',new Date().toLocaleDateString('sv-SE'));recalcular()" title="Usar fecha de hoy">Hoy</button>
+        </div>
       </div>
       ${int.tipoTasa?`<div class="col-12 d-flex align-items-center gap-2">
         ${esVar?`<button class="btn-calc-tasa" id="btnCalc_${rubroKey}" onclick="calcularTasaRubro('${rubroKey}')">
@@ -690,7 +832,19 @@ function renderInteresesBox(rubroKey, int, periodos){
       </div>`:''}
     </div>`;
 
-  if(int.resultado){
+  if(int.periodoResultados && int.periodoResultados.length > 0){
+    const totalInt = int.periodoResultados.reduce((s,r)=>s+r.interes,0);
+    html+=`<div class="mt-2"><small class="fw-semibold text-muted">Intereses calculados por período (saldo vigente):</small>
+      <table class="table table-sm table-bordered periodos-table mt-1"><thead>
+        <tr><th>Per.</th><th>Capital vigente</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Tasa</th><th>Interés</th></tr>
+      </thead><tbody>
+        ${int.periodoResultados.map((p,i)=>`<tr><td>${i+1}</td><td>${fmt(p.capital)}</td><td>${fmtFecha(p.desde)}</td><td>${fmtFecha(p.hasta)}</td><td>${p.dias||'—'}</td><td><span class="badge-tasa">${p.tasa||'—'}</span></td><td><strong>${fmt(p.interes)}</strong></td></tr>`).join('')}
+      </tbody></table>
+      <div class="tasa-result-box mt-1">
+        <strong style="color:var(--ol-teal)">Interés total: ${fmt(totalInt)}</strong>
+        <div class="text-muted" style="font-size:.72rem;margin-top:2px">Calculado por Calculadora de Tasas – Poder Judicial del Chaco (un cálculo por período)</div>
+      </div></div>`;
+  } else if(int.resultado){
     html+=`<div class="tasa-result-box mt-2">
       <span class="badge-tasa me-1">Tasa aplicada: ${int.resultado.tasa||'—'}</span>
       <span class="badge-dias me-1">${int.resultado.dias||'—'} días</span>
@@ -698,22 +852,33 @@ function renderInteresesBox(rubroKey, int, periodos){
       ${esVar?`<div class="text-muted" style="font-size:.72rem;margin-top:3px">Calculado por Calculadora de Tasas – Poder Judicial del Chaco</div>`:''}
     </div>`;
   } else if(esFija&&int.fechaInicio&&int.fechaFin&&getMonto(rubroKey)){
-    const r = calcInteresesFijos(getMonto(rubroKey),int.tipoTasa,int.tasaPctAnual,int.fechaInicio,int.fechaFin);
-    if(r) html+=`<div class="tasa-result-box mt-2">
-      <span class="badge-tasa me-1">Tasa: ${r.tasa}</span>
-      <span class="badge-dias me-1">${r.dias} días</span>
-      <strong style="color:var(--ol-teal)">Interés: ${fmt(r.interes)}</strong>
-    </div>`;
-  }
-
-  // Tabla de períodos si hay pagos a capital
-  if(periodos.length>1){
-    html+=`<div class="mt-2"><small class="fw-semibold text-muted">Períodos de cómputo (por pagos parciales a capital):</small>
-      <table class="table table-sm table-bordered periodos-table mt-1"><thead>
-        <tr><th>Período</th><th>Capital vigente</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Interés</th></tr>
-      </thead><tbody>
-        ${periodos.map((p,i)=>`<tr><td>${i+1}</td><td>${fmt(p.capital)}</td><td>${fmtFecha(p.desde)}</td><td>${fmtFecha(p.hasta)}</td><td>${p.dias}</td><td>${p.interes!==null?fmt(p.interes):'<em>variable</em>'}</td></tr>`).join('')}
-      </tbody></table></div>`;
+    const tnaLabel = (()=>{const t=getTNAFija(int.tipoTasa,int.tasaPctAnual);return t!==null?(t*100).toFixed(4)+'%':'—';})();
+    if(periodos.length>1){
+      const totalInt = periodos.reduce((s,p)=>s+(p.interes||0),0);
+      html+=`<div class="mt-2"><small class="fw-semibold text-muted">Períodos de cómputo (por pagos parciales):</small>
+        <table class="table table-sm table-bordered periodos-table mt-1"><thead>
+          <tr><th>Per.</th><th>Capital vigente</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Tasa</th><th>Interés</th></tr>
+        </thead><tbody>
+          ${periodos.map((p,i)=>`<tr><td>${i+1}</td><td>${fmt(p.capital||0)}</td><td>${fmtFecha(p.desde)}</td><td>${fmtFecha(p.hasta)}</td><td>${p.dias}</td><td><span class="badge-tasa">${tnaLabel}</span></td><td><strong>${p.interes!==null?fmt(p.interes):'—'}</strong></td></tr>`).join('')}
+        </tbody></table>
+        <div class="tasa-result-box mt-1">
+          <span class="badge-tasa me-1">Tasa: ${tnaLabel}</span>
+          <strong style="color:var(--ol-teal)">Interés total: ${fmt(totalInt)}</strong>
+        </div></div>`;
+    } else if(periodos.length===1&&periodos[0].interes!==null){
+      html+=`<div class="tasa-result-box mt-2">
+        <span class="badge-tasa me-1">Tasa: ${tnaLabel}</span>
+        <span class="badge-dias me-1">${periodos[0].dias} días</span>
+        <strong style="color:var(--ol-teal)">Interés: ${fmt(periodos[0].interes)}</strong>
+      </div>`;
+    } else {
+      const r = calcInteresesFijos(getMonto(rubroKey),int.tipoTasa,int.tasaPctAnual,int.fechaInicio,int.fechaFin);
+      if(r) html+=`<div class="tasa-result-box mt-2">
+        <span class="badge-tasa me-1">Tasa: ${r.tasa}</span>
+        <span class="badge-dias me-1">${r.dias} días</span>
+        <strong style="color:var(--ol-teal)">Interés: ${fmt(r.interes)}</strong>
+      </div>`;
+    }
   }
 
   return html+'</div>';
@@ -735,19 +900,23 @@ function getMonto(rubroKey){
   if(rubroKey==='gastosNoDoc') return STATE.gastosNoDoc.monto;
   const [tipo,idxStr] = rubroKey.split('_');
   const idx = parseInt(idxStr);
-  if(tipo==='honor') return STATE.honorarios[idx]?.monto||0;
+  if(tipo==='honor'&&STATE.honorarios[idx]){ const h=STATE.honorarios[idx]; return h.usaUMA?(h.cantUMA*(h.valorUMA||0)):(h.monto||0); }
   if(tipo==='gdoc') return STATE.gastosDoc[idx]?.monto||0;
   return 0;
 }
 
 function setInteresField(rubroKey, field, val){
-  if(rubroKey==='capital') STATE.capital.intereses[field]=val;
-  else if(rubroKey==='gastosNoDoc') STATE.gastosNoDoc.intereses[field]=val;
+  let int;
+  if(rubroKey==='capital'){STATE.capital.intereses[field]=val;int=STATE.capital.intereses;}
+  else if(rubroKey==='gastosNoDoc'){STATE.gastosNoDoc.intereses[field]=val;int=STATE.gastosNoDoc.intereses;}
   else {
     const [tipo,idxStr]=rubroKey.split('_');
     const idx=parseInt(idxStr);
-    if(tipo==='honor'&&STATE.honorarios[idx]) STATE.honorarios[idx].intereses[field]=val;
-    if(tipo==='gdoc'&&STATE.gastosDoc[idx]) STATE.gastosDoc[idx].intereses[field]=val;
+    if(tipo==='honor'&&STATE.honorarios[idx]){STATE.honorarios[idx].intereses[field]=val;int=STATE.honorarios[idx].intereses;}
+    if(tipo==='gdoc'&&STATE.gastosDoc[idx]){STATE.gastosDoc[idx].intereses[field]=val;int=STATE.gastosDoc[idx].intereses;}
+  }
+  if(int&&['tipoTasa','fechaInicio','fechaFin'].includes(field)){
+    int.resultado=null;int.periodoResultados=null;
   }
   recalcularDesdeRubro(rubroKey);
 }
@@ -763,74 +932,134 @@ function recalcularDesdeRubro(rubroKey){
   recalcular();
 }
 
+function getInteresObj(rubroKey){
+  if(rubroKey==='capital') return STATE.capital.intereses;
+  if(rubroKey==='gastosNoDoc') return STATE.gastosNoDoc.intereses;
+  const[tipo,idxStr]=rubroKey.split('_');const idx=parseInt(idxStr);
+  if(tipo==='honor'&&STATE.honorarios[idx]) return STATE.honorarios[idx].intereses;
+  if(tipo==='gdoc'&&STATE.gastosDoc[idx]) return STATE.gastosDoc[idx].intereses;
+  return null;
+}
+
+function pagoChanged(rubroKey){
+  const int=getInteresObj(rubroKey);
+  if(int){
+    int.resultado=null;int.periodoResultados=null;
+    // Auto-extend fechaFin to today when a payment date reaches or exceeds it
+    if(int.activo&&int.fechaFin){
+      const pagos=getPagosArray(rubroKey)||[];
+      const maxFecha=pagos.reduce((mx,p)=>p.fecha&&p.fecha>mx?p.fecha:mx,'');
+      if(maxFecha&&maxFecha>=int.fechaFin){
+        const hoy=new Date().toLocaleDateString('sv-SE');
+        if(hoy>int.fechaFin){
+          int.fechaFin=hoy;
+          showToast('Fecha cierre extendida a hoy para calcular intereses sobre el saldo.','warning');
+        }
+      }
+    }
+  }
+  recalcularDesdeRubro(rubroKey);
+}
+
+function calcularPeriodosBase(monto, pagosBase, fechaInicio, fechaFin){
+  if(!monto||!fechaInicio||!fechaFin) return [{capital:monto,desde:fechaInicio,hasta:fechaFin}];
+  let capActual = monto;
+  // Pre-aplicar pagos en o antes de fechaInicio
+  pagosBase.filter(p=>p.fecha&&p.fecha<=fechaInicio&&p.monto>0).forEach(p=>{
+    capActual=Math.max(0,capActual-p.monto);
+  });
+  const pagOrd = [...pagosBase]
+    .filter(p=>p.fecha>fechaInicio&&p.fecha<fechaFin&&p.monto>0)
+    .sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(pagOrd.length===0) return [{capital:capActual,desde:fechaInicio,hasta:fechaFin}];
+  let periodos=[], desde=fechaInicio;
+  for(const p of pagOrd){
+    if(p.fecha<=desde){capActual=Math.max(0,capActual-p.monto);continue;}
+    periodos.push({capital:capActual,desde,hasta:p.fecha});
+    capActual=Math.max(0,capActual-p.monto);
+    desde=p.fecha;
+  }
+  if(capActual>0&&desde<fechaFin) periodos.push({capital:capActual,desde,hasta:fechaFin});
+  return periodos;
+}
+
 async function calcularTasaRubro(rubroKey){
   let int, monto;
   if(rubroKey==='capital'){int=STATE.capital.intereses;monto=STATE.capital.monto;}
   else if(rubroKey==='gastosNoDoc'){int=STATE.gastosNoDoc.intereses;monto=STATE.gastosNoDoc.monto;}
   else{
     const[tipo,idxStr]=rubroKey.split('_');const idx=parseInt(idxStr);
-    if(tipo==='honor'){int=STATE.honorarios[idx].intereses;monto=STATE.honorarios[idx].monto;}
+    if(tipo==='honor'){
+      const h=STATE.honorarios[idx];
+      int=h.intereses;
+      monto=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+    }
     if(tipo==='gdoc'){int=STATE.gastosDoc[idx].intereses;monto=STATE.gastosDoc[idx].monto;}
   }
-  if(!int||!monto||!int.fechaInicio||!int.fechaFin){
+  if(!int||!monto||!int.tipoTasa||!int.fechaInicio||!int.fechaFin){
     showToast('Complete monto, tipo de tasa y fechas antes de calcular.','warning');return;
   }
   const tipoId = int.tipoTasa.split(':')[1];
+  if(!tipoId){showToast('Seleccione un tipo de tasa variable antes de consultar.','warning');return;}
   const btn = document.getElementById('btnCalc_'+rubroKey);
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Consultando PJ...';}
+
+  // Determinar concepto de pago que reduce la base de cálculo
+  const conceptoBase = rubroKey==='capital'?'capital':rubroKey.startsWith('honor')?'honorarios':'gastos';
+  const pagosArr = getPagosArray(rubroKey)||[];
+  const pagosBase = pagosArr.filter(p=>p.concepto===conceptoBase&&p.fecha&&p.monto>0);
+  // Para honorarios UMA, usar calcularPeriodosBaseUMA que convierte pagos a UMAs
+  const isHonUMA = rubroKey && rubroKey.startsWith('honor_') && (()=>{
+    const hIdx = parseInt(rubroKey.split('_')[1]);
+    return STATE.honorarios[hIdx]?.usaUMA===true;
+  })();
+  const periodos = isHonUMA ? (()=>{
+    const hIdx = parseInt(rubroKey.split('_')[1]);
+    const h = STATE.honorarios[hIdx];
+    return calcularPeriodosBaseUMA(h.cantUMA||0, h.valorUMA||0,
+      pagosBase, int.fechaInicio, int.fechaFin);
+  })() : calcularPeriodosBase(monto, pagosBase, int.fechaInicio, int.fechaFin);
+
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Consultando PJ (${periodos.length} período${periodos.length>1?'s':''})...`;}
   try{
-    const res = await fetchTasaPJ(monto, tipoId, isoToDD(int.fechaInicio), isoToDD(int.fechaFin));
-    if(res){
+    if(periodos.length<=1){
+      const res = await fetchTasaPJ(monto, tipoId, isoToDD(int.fechaInicio), isoToDD(int.fechaFin));
       int.resultado = res;
-      showToast('Tasa obtenida del PJ Chaco correctamente.');
-      recalcularDesdeRubro(rubroKey);
+      int.periodoResultados = null;
     } else {
-      mostrarFallbackManual(rubroKey, int, monto);
+      const periodoResultados = [];
+      for(let i=0;i<periodos.length;i++){
+        const p = periodos[i];
+        if(btn) btn.innerHTML=`<span class="spin"></span> Período ${i+1}/${periodos.length}...`;
+        const res = await fetchTasaPJ(p.capital, tipoId, isoToDD(p.desde), isoToDD(p.hasta));
+        periodoResultados.push({capital:p.capital,desde:p.desde,hasta:p.hasta,interes:res.interes,tasa:res.tasa,dias:res.dias});
+      }
+      int.periodoResultados = periodoResultados;
+      const totalInteres = periodoResultados.reduce((s,r)=>s+r.interes,0);
+      int.resultado = {interes:totalInteres, tasa:'variable (por períodos)', dias:null};
     }
+    showToast('Tasa obtenida del PJ Chaco correctamente.');
+    recalcularDesdeRubro(rubroKey);
   } catch(e){
-    mostrarFallbackManual(rubroKey, int, monto);
+    if(e.message==='WORKER_NOT_CONFIGURED'){
+      showToast('Configure el Worker para obtener tasas automáticamente.','warning');
+      abrirConfigWorker();
+    } else {
+      showToast('Error al consultar PJ Chaco: '+e.message,'error');
+    }
   }
   if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-cloud-download me-1"></i>Obtener tasa del PJ Chaco';}
 }
 
-function mostrarFallbackManual(rubroKey, int, monto){
-  // Armar URL prefilled para el PJ Chaco
-  const pjUrl = 'https://www.justiciachaco.gov.ar/index.php?action=calculadora_tasas';
-  const desde = fmtFecha(int.fechaInicio);
-  const hasta = fmtFecha(int.fechaFin);
-  const tipoLabel = TASA_LABEL[int.tipoTasa]||int.tipoTasa;
-
-  document.getElementById('modalFallbackTitulo').textContent = tipoLabel;
-  document.getElementById('modalFallbackDatos').innerHTML =
-    `Monto: <strong>${fmt(monto)}</strong> &nbsp;|&nbsp; Desde: <strong>${desde}</strong> &nbsp;|&nbsp; Hasta: <strong>${hasta}</strong>`;
-  document.getElementById('modalFallbackLink').href = pjUrl;
-  document.getElementById('modalFallbackInteresInput').value = '';
-  document.getElementById('modalFallbackDiasInput').value = '';
-  document.getElementById('modalFallbackTasaInput').value = '';
-  // Guardar el rubroKey para cuando el usuario confirme
-  document.getElementById('modalFallbackConfirm').onclick = () => {
-    const interesVal = parseFloat(document.getElementById('modalFallbackInteresInput').value.replace(',','.'));
-    const diasVal = parseInt(document.getElementById('modalFallbackDiasInput').value)||null;
-    const tasaVal = document.getElementById('modalFallbackTasaInput').value||null;
-    if(!interesVal||isNaN(interesVal)){
-      document.getElementById('modalFallbackError').style.display='';
-      return;
-    }
-    document.getElementById('modalFallbackError').style.display='none';
-    int.resultado = { interes: interesVal, dias: diasVal, tasa: tasaVal, rawText: 'Ingreso manual' };
-    bootstrap.Modal.getInstance(document.getElementById('modalFallback')).hide();
-    showToast('Interés cargado manualmente.');
-    recalcularDesdeRubro(rubroKey);
-  };
-  new bootstrap.Modal(document.getElementById('modalFallback')).show();
-}
 
 // ═══════════════════════════════════════════════════════════════
 // RENDER HONORARIOS
 // ═══════════════════════════════════════════════════════════════
 function agregarHonorario(){
+  const valorUMAActual = getUMAVigente();
   STATE.honorarios.push({
-    id:uid(), descripcion:'', monto:0, fecha:'', foja:'', obs:'',
+    id:uid(), descripcion:'',
+    usaUMA:null, cantUMA:0, valorUMA:valorUMAActual, valorUMAFecha:'',
+    monto:0, fecha:'', foja:'', obs:'',
     intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},
     pagos:[]
   });
@@ -841,33 +1070,97 @@ function renderHonorarios(){
   let html='';
   if(STATE.honorarios.length===0){html='<p class="text-muted small">Sin honorarios cargados.</p>';}
   STATE.honorarios.forEach((h,i)=>{
+    // Compatibilidad backward: si usaUMA no está definido, asumir pesos
+    const usaUMA = h.usaUMA === true;
+
+    // Sin modalidad elegida aún: mostrar selector
+    if(h.usaUMA === null){
+      html+=`<div class="item-box">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="item-label">Honorario #${i+1}</div>
+          <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.75rem" onclick="STATE.honorarios.splice(${i},1);renderHonorarios();recalcular()"><i class="bi bi-trash"></i></button>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-4">
+            <label class="form-label-sm">Descripción <span class="fs-label">opc.</span></label>
+            <input type="text" class="form-control form-control-sm" value="${h.descripcion||''}" placeholder="Ej: Dr. Pérez - 1ª instancia"
+              onchange="STATE.honorarios[${i}].descripcion=this.value">
+          </div>
+        </div>
+        <div class="p-3 text-center" style="background:#f0f7f8;border-radius:8px;border:2px dashed #4A97A3">
+          <div class="small fw-semibold mb-2" style="color:#2B7A86">¿Cómo están regulados los honorarios?</div>
+          <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-outline-secondary btn-sm" onclick="STATE.honorarios[${i}].usaUMA=false;renderHonorarios();recalcular()">
+              <i class="bi bi-currency-dollar me-1"></i>En Pesos ($)
+            </button>
+            <button class="btn btn-info btn-sm text-dark" onclick="STATE.honorarios[${i}].usaUMA=true;STATE.honorarios[${i}].valorUMA=getUMAVigente();renderHonorarios();recalcular()">
+              <i class="bi bi-layers me-1"></i>En UMA
+            </button>
+          </div>
+        </div>
+      </div>`;
+      return;
+    }
+
+    const montoBase = usaUMA ? (h.cantUMA||0)*(h.valorUMA||0) : (h.monto||0);
     const periodos = h.intereses.activo
-      ? calcularPeriodos(h.monto, h.pagos.filter(p=>p.concepto==='honorarios'), h.intereses.tipoTasa, h.intereses.tasaPctAnual, h.intereses.fechaInicio, h.intereses.fechaFin)
+      ? (usaUMA
+          ? calcPeriodosUMA(h.cantUMA||0, h.valorUMA||0,
+              h.pagos.filter(p=>p.concepto==='honorarios'),
+              h.intereses.tipoTasa, h.intereses.tasaPctAnual,
+              h.intereses.fechaInicio, h.intereses.fechaFin)
+          : calcularPeriodos(montoBase, h.pagos.filter(p=>p.concepto==='honorarios'),
+              h.intereses.tipoTasa, h.intereses.tasaPctAnual,
+              h.intereses.fechaInicio, h.intereses.fechaFin))
       : [];
+    const pesoEquiv = usaUMA && (h.cantUMA||0)>0 ? fmt((h.cantUMA||0)*(h.valorUMA||0)) : '';
     html+=`<div class="item-box">
       <div class="d-flex justify-content-between align-items-start">
-        <div class="item-label">Honorario #${i+1}</div>
+        <div class="item-label">Honorario #${i+1} <span class="badge ${usaUMA?'bg-info text-dark':'bg-secondary'} ms-1" style="font-size:.65rem">${usaUMA?'UMA':'$'}</span></div>
         <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.75rem" onclick="STATE.honorarios.splice(${i},1);renderHonorarios();recalcular()"><i class="bi bi-trash"></i></button>
       </div>
-      <div class="row g-2 mt-1">
-        <div class="col-md-4">
+      <div class="row g-2 mt-1 align-items-end">
+        <div class="col-md-3">
           <label class="form-label-sm">Descripción</label>
           <input type="text" class="form-control form-control-sm" value="${h.descripcion||''}" placeholder="Ej: Dr. Pérez - 1ª instancia"
             onchange="STATE.honorarios[${i}].descripcion=this.value">
         </div>
+        <div class="col-auto d-flex align-items-end pb-1 gap-1">
+          <span class="badge ${usaUMA?'bg-info text-dark':'bg-secondary'}" style="font-size:.7rem">${usaUMA?'En UMA':'En Pesos'}</span>
+          <button class="btn btn-link btn-sm p-0" style="font-size:.72rem;color:#888;text-decoration:none"
+            onclick="STATE.honorarios[${i}].usaUMA=null;renderHonorarios();recalcular()"
+            title="Cambiar modalidad de regulación">cambiar</button>
+        </div>
+        ${usaUMA ? `<div class="col-md-2">
+          <label class="form-label-sm req-star">Cant. UMA</label>
+          <input type="number" class="form-control form-control-sm" value="${h.cantUMA||''}" min="0" step="0.01" placeholder="Ej: 150"
+            onchange="STATE.honorarios[${i}].cantUMA=parseFloat(this.value)||0;recalcular()">
+        </div>
         <div class="col-md-2">
+          <label class="form-label-sm req-star">Valor UMA ($)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" id="valorUMA_${i}" value="${h.valorUMA||UMA_DEFAULT_VALOR}" min="0" step="1"
+              onchange="STATE.honorarios[${i}].valorUMA=parseFloat(this.value)||0;recalcular()">
+            <button class="btn btn-outline-secondary" id="btnUMA_${i}" title="Actualizar UMA desde CSJN"
+              onclick="actualizarUMAHonorario(${i})"><i class="bi bi-arrow-clockwise"></i></button>
+          </div>
+          ${h.valorUMAFecha?`<div class="fs-label" style="font-size:.65rem">Al ${fmtFecha(h.valorUMAFecha)}</div>`:''}
+        </div>
+        <div class="col-md-2 d-flex align-items-end pb-1">
+          ${pesoEquiv?`<span class="text-muted small">${h.cantUMA} UMA = <strong>${pesoEquiv}</strong></span>`:''}
+        </div>` : `<div class="col-md-2">
           <label class="form-label-sm req-star">Monto ($)</label>
           <input type="number" class="form-control form-control-sm" value="${h.monto||''}" min="0" step="0.01"
             onchange="STATE.honorarios[${i}].monto=parseFloat(this.value)||0;recalcular()">
-        </div>
+        </div>`}
         <div class="col-md-2">
           <label class="form-label-sm">Fecha <span class="fs-label">opc.</span></label>
           <input type="date" class="form-control form-control-sm" value="${h.fecha||''}"
             onchange="STATE.honorarios[${i}].fecha=this.value">
         </div>
-        <div class="col-md-2">
+        <div class="col-md-1">
           <label class="form-label-sm">Fs.</label>
-          <input type="text" class="form-control form-control-sm foja-input" value="${h.foja||''}" placeholder="Ej: 35"
+          <input type="text" class="form-control form-control-sm foja-input" value="${h.foja||''}" placeholder="35"
             onchange="STATE.honorarios[${i}].foja=this.value">
         </div>
         <div class="col-md-2">
@@ -887,7 +1180,7 @@ function renderHonorarios(){
         ${h.intereses.activo ? renderInteresesBox('honor_'+i, h.intereses, periodos) : ''}
       </div>
     </div>
-    ${renderPagosZona(h.pagos, 'honor_'+i)}
+    ${renderPagosZona(h.pagos, 'honor_'+i, usaUMA, h.valorUMA||UMA_DEFAULT_VALOR)}
     <button class="btn btn-add-item btn-sm mt-1 mb-2" onclick="agregarPago('honor_${i}')"><i class="bi bi-plus-circle me-1"></i>Agregar pago</button>`;
   });
   document.getElementById('honorariosContainer').innerHTML = html;
@@ -1038,11 +1331,30 @@ function agregarPago(rubroKey){
   const arr = getPagosArray(rubroKey);
   if(!arr) return;
   const defaultConcepto = rubroKey.startsWith('honor')?'honorarios':rubroKey.startsWith('gdoc')||rubroKey==='gastosNoDoc'?'gastos':'capital';
-  arr.push({id:uid(),fecha:'',monto:0,concepto:defaultConcepto,foja:''});
-  recalcularDesdeRubro(rubroKey);
+  // Para honorarios UMA: incluir valorUMAalPago con el valor UMA actual
+  const isHonUMA = rubroKey.startsWith('honor_') && (()=>{
+    const idx = parseInt(rubroKey.split('_')[1]);
+    return STATE.honorarios[idx]?.usaUMA===true;
+  })();
+  const valorUMAActual = isHonUMA ? (()=>{
+    const idx = parseInt(rubroKey.split('_')[1]);
+    return STATE.honorarios[idx]?.valorUMA || getUMAVigente();
+  })() : 0;
+  const nuevoPago = {id:uid(),fecha:'',monto:0,concepto:defaultConcepto,foja:''};
+  if(isHonUMA) nuevoPago.valorUMAalPago = valorUMAActual;
+  arr.push(nuevoPago);
+  // Auto-habilitar intereses al agregar el primer pago
+  if(arr.length===1){
+    if(rubroKey==='capital'&&!STATE.capital.intereses.activo) STATE.capital.intereses.activo=true;
+    else if(rubroKey==='gastosNoDoc'&&!STATE.gastosNoDoc.intereses.activo) STATE.gastosNoDoc.intereses.activo=true;
+    else{const[tipo,idxStr]=rubroKey.split('_');const idx=parseInt(idxStr);
+      if(tipo==='honor'&&STATE.honorarios[idx]&&!STATE.honorarios[idx].intereses.activo) STATE.honorarios[idx].intereses.activo=true;
+      if(tipo==='gdoc'&&STATE.gastosDoc[idx]&&!STATE.gastosDoc[idx].intereses.activo) STATE.gastosDoc[idx].intereses.activo=true;}
+  }
+  pagoChanged(rubroKey);
 }
 
-function renderPagosZona(pagos, rubroKey){
+function renderPagosZona(pagos, rubroKey, isUMAHon=false, valorUMADefault=0){
   if(!pagos||pagos.length===0) return '';
   let html='<div class="pagos-zona">';
   pagos.forEach((p,i)=>{
@@ -1052,17 +1364,17 @@ function renderPagosZona(pagos, rubroKey){
       <div>
         <label class="form-label-sm mb-0">Fecha</label>
         <input type="date" class="form-control form-control-sm d-inline-block" style="width:140px" value="${p.fecha||''}"
-          onchange="getPagosArray('${rubroKey}')[${i}].fecha=this.value;recalcularDesdeRubro('${rubroKey}')">
+          onchange="getPagosArray('${rubroKey}')[${i}].fecha=this.value;pagoChanged('${rubroKey}')">
       </div>
       <div>
         <label class="form-label-sm mb-0">Monto ($)</label>
         <input type="number" class="form-control form-control-sm d-inline-block" style="width:120px" value="${p.monto||''}" min="0" step="0.01"
-          onchange="getPagosArray('${rubroKey}')[${i}].monto=parseFloat(this.value)||0;recalcularDesdeRubro('${rubroKey}')">
+          onchange="getPagosArray('${rubroKey}')[${i}].monto=parseFloat(this.value)||0;pagoChanged('${rubroKey}')">
       </div>
       <div>
         <label class="form-label-sm mb-0">Concepto</label>
         <select class="form-select form-select-sm d-inline-block" style="width:200px"
-          onchange="getPagosArray('${rubroKey}')[${i}].concepto=this.value;recalcularDesdeRubro('${rubroKey}')">
+          onchange="getPagosArray('${rubroKey}')[${i}].concepto=this.value;pagoChanged('${rubroKey}')">
           ${Object.entries(PAGO_CONCEPTOS).map(([v,l])=>`<option value="${v}"${p.concepto===v?' selected':''}>${l}</option>`).join('')}
         </select>
       </div>
@@ -1071,9 +1383,14 @@ function renderPagosZona(pagos, rubroKey){
         <input type="text" class="form-control form-control-sm foja-input d-inline-block" value="${p.foja||''}" placeholder="Fs."
           onchange="getPagosArray('${rubroKey}')[${i}].foja=this.value">
       </div>
+      ${isUMAHon ? `<div>
+        <label class="form-label-sm mb-0">Valor UMA al pago ($)</label>
+        <input type="number" class="form-control form-control-sm d-inline-block" style="width:130px" value="${p.valorUMAalPago||valorUMADefault||''}" min="0" step="1" placeholder="Valor UMA"
+          onchange="getPagosArray('${rubroKey}')[${i}].valorUMAalPago=parseFloat(this.value)||0;pagoChanged('${rubroKey}')">
+      </div>` : ''}
       <span class="pago-label">${PAGO_CONCEPTOS[p.concepto]||p.concepto}</span>
       <button class="btn btn-sm btn-outline-danger ms-auto" style="padding:1px 7px;font-size:.72rem"
-        onclick="getPagosArray('${rubroKey}').splice(${i},1);recalcularDesdeRubro('${rubroKey}')"><i class="bi bi-x"></i></button>
+        onclick="getPagosArray('${rubroKey}').splice(${i},1);pagoChanged('${rubroKey}')"><i class="bi bi-x"></i></button>
     </div>`;
   });
   return html+'</div>';
@@ -1082,11 +1399,124 @@ function renderPagosZona(pagos, rubroKey){
 // ═══════════════════════════════════════════════════════════════
 // RECALCULAR Y RESUMEN
 // ═══════════════════════════════════════════════════════════════
-function getInteresRubro(int, monto, rubroKey){
-  if(!int.activo||!monto) return 0;
+function getInteresConPeriodos(int, monto, pagos, rubroKey){
+  if(!int||!int.activo||!monto) return 0;
   if(int.resultado) return int.resultado.interes||0;
-  const r = calcInteresesFijos(monto, int.tipoTasa, int.tasaPctAnual, int.fechaInicio, int.fechaFin);
-  return r ? r.interes : 0;
+  if(!int.tipoTasa||!int.fechaInicio||!int.fechaFin) return 0;
+  const conceptoBase = rubroKey==='capital'?'capital':(rubroKey.startsWith('honor')?'honorarios':'gastos');
+  const pagosBase = (pagos||[]).filter(p=>p.concepto===conceptoBase&&p.fecha&&p.monto>0);
+  const periodos = calcularPeriodos(monto, pagosBase, int.tipoTasa, int.tasaPctAnual, int.fechaInicio, int.fechaFin);
+  return periodos.reduce((s,p)=>s+(p.interes||0),0);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// UMA — UNIDAD DE MEDIDA ARANCELARIA (Ley 4228-C, Chaco)
+// ═══════════════════════════════════════════════════════════════
+const UMA_DEFAULT_VALOR = 92482;  // $92.482 — CSJN Res.SGA N° 538/2026 (desde 01/02/2026)
+const UMA_DEFAULT_FECHA = '2026-02-01';
+const UMA_CACHE_KEY = 'uma_valor_cache';
+
+function getUMAVigente(){
+  try {
+    const c = JSON.parse(localStorage.getItem(UMA_CACHE_KEY)||'{}');
+    if(c.valor && c.ts && (Date.now()-c.ts < 86400000)) return c.valor;
+  } catch(e){}
+  return UMA_DEFAULT_VALOR;
+}
+
+async function fetchUMAFromWorker(){
+  const wurl = localStorage.getItem('workerUrl');
+  if(!wurl) return UMA_DEFAULT_VALOR;
+  try {
+    const r = await fetch(wurl, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'uma'})
+    });
+    const d = await r.json();
+    if(d.ok && d.valor > 10000) {
+      localStorage.setItem(UMA_CACHE_KEY, JSON.stringify({valor:d.valor, ts:Date.now()}));
+      return d.valor;
+    }
+  } catch(e){}
+  return UMA_DEFAULT_VALOR;
+}
+
+async function actualizarUMAHonorario(idx){
+  const btnId = 'btnUMA_'+idx;
+  const btn = document.getElementById(btnId);
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>';}
+  const valor = await fetchUMAFromWorker();
+  STATE.honorarios[idx].valorUMA = valor;
+  STATE.honorarios[idx].valorUMAFecha = new Date().toISOString().split('T')[0];
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-arrow-clockwise"></i>';}
+  renderHonorarios();
+  recalcular();
+  showToast(`UMA actualizada: ${fmt(valor)}`, 'success');
+}
+
+// Calcula intereses UMA período por período.
+// Cada pago reduce UMAs: umasActuales -= p.monto / (p.valorUMAalPago || valorUMA)
+// Base de cada período = umasActuales × valorUMA (valor actual)
+function calcPeriodosUMA(cantUMA, valorUMA, pagosUMA, tipoTasa, tasaPct, fechaInicio, fechaFin){
+  if(!cantUMA||!valorUMA||!fechaInicio||!fechaFin) return [];
+  const tna = getTNAFija(tipoTasa, tasaPct);
+  let umasRest = cantUMA;
+  // Pre-aplicar pagos en o antes de fechaInicio (reducen la base desde el inicio)
+  pagosUMA.filter(p=>p.fecha&&p.monto>0&&p.fecha<=fechaInicio).forEach(p=>{
+    umasRest = Math.max(0, umasRest - p.monto/(p.valorUMAalPago||valorUMA));
+  });
+  const fechasPago = pagosUMA.filter(p=>p.fecha&&p.monto>0).map(p=>p.fecha).filter(f=>f>fechaInicio&&f<fechaFin);
+  const puntos = [fechaInicio, ...fechasPago.sort(), fechaFin];
+  const unique = [...new Set(puntos)];
+  const periodos = [];
+  for(let i=0;i<unique.length-1;i++){
+    const desde = unique[i];
+    const hasta = unique[i+1];
+    const d = Math.round((new Date(hasta)-new Date(desde))/(86400000));
+    if(d<=0) continue;
+    const capital = umasRest * valorUMA;
+    const interes = tna!==null ? capital*(tna/365)*d : 0;
+    periodos.push({desde, hasta, dias:d, cantUMA:umasRest, capital, interes});
+    pagosUMA.filter(p=>p.fecha===hasta&&p.monto>0).forEach(p=>{
+      umasRest = Math.max(0, umasRest - p.monto/(p.valorUMAalPago||valorUMA));
+    });
+  }
+  return periodos;
+}
+
+// Genera períodos base para tasas variables (PJ Chaco) sobre honorarios UMA
+function calcularPeriodosBaseUMA(cantUMA, valorUMA, pagosUMA, fechaInicio, fechaFin){
+  let umasRest = cantUMA;
+  // Pre-aplicar pagos en o antes de fechaInicio
+  pagosUMA.filter(p=>p.fecha&&p.monto>0&&p.fecha<=fechaInicio).forEach(p=>{
+    umasRest = Math.max(0, umasRest - p.monto/(p.valorUMAalPago||valorUMA));
+  });
+  const fechasPago = pagosUMA.filter(p=>p.fecha&&p.monto>0).map(p=>p.fecha).filter(f=>f>fechaInicio&&f<fechaFin);
+  const puntos = [fechaInicio, ...fechasPago.sort(), fechaFin];
+  const unique = [...new Set(puntos)];
+  const periodos = [];
+  for(let i=0;i<unique.length-1;i++){
+    const desde = unique[i];
+    const hasta = unique[i+1];
+    const capital = umasRest * valorUMA;
+    periodos.push({desde, hasta, capital, cantUMA:umasRest});
+    pagosUMA.filter(p=>p.fecha===hasta&&p.monto>0).forEach(p=>{
+      umasRest = Math.max(0, umasRest - p.monto/(p.valorUMAalPago||valorUMA));
+    });
+  }
+  return periodos;
+}
+
+function getInteresHonorariosUMA(h, idx){
+  if(!h.intereses||!h.intereses.activo||!h.cantUMA||!h.valorUMA) return 0;
+  const int = h.intereses;
+  if(int.resultado) return int.resultado.interes||0;
+  if(!int.tipoTasa||!int.fechaInicio||!int.fechaFin) return 0;
+  const pagosUMA = (h.pagos||[]).filter(p=>p.concepto==='honorarios'&&p.fecha&&p.monto>0);
+  const periodos = calcPeriodosUMA(h.cantUMA, h.valorUMA, pagosUMA, int.tipoTasa, int.tasaPctAnual, int.fechaInicio, int.fechaFin);
+  return periodos.reduce((s,p)=>s+(p.interes||0),0);
 }
 
 function recalcular(){
@@ -1102,72 +1532,129 @@ function actualizarBadge(rubro){
   if(!el) return;
   let v = 0;
   if(rubro==='capital'){
-    v = STATE.capital.monto + getInteresRubro(STATE.capital.intereses, STATE.capital.monto, 'capital');
+    v = STATE.capital.monto + getInteresConPeriodos(STATE.capital.intereses, STATE.capital.monto, STATE.capital.pagos, 'capital');
   } else if(rubro==='honorarios'){
-    STATE.honorarios.forEach((h,i)=>{ v+=h.monto+getInteresRubro(h.intereses,h.monto,'honor_'+i); });
+    STATE.honorarios.forEach((h,i)=>{
+      const montoH = h.usaUMA===true ? (h.cantUMA||0)*(h.valorUMA||0) : (h.monto||0);
+      const intH = h.usaUMA===true ? getInteresHonorariosUMA(h,i) : getInteresConPeriodos(h.intereses,montoH,h.pagos,'honor_'+i);
+      v += montoH + intH;
+    });
   } else if(rubro==='gastos-doc'){
-    STATE.gastosDoc.forEach((g,i)=>{ v+=g.monto+getInteresRubro(g.intereses,g.monto,'gdoc_'+i); });
+    STATE.gastosDoc.forEach((g,i)=>{ v+=g.monto+getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i); });
   } else if(rubro==='gastos-nodoc'){
-    v=STATE.gastosNoDoc.monto+getInteresRubro(STATE.gastosNoDoc.intereses,STATE.gastosNoDoc.monto,'gastosNoDoc');
+    v=STATE.gastosNoDoc.monto+getInteresConPeriodos(STATE.gastosNoDoc.intereses,STATE.gastosNoDoc.monto,STATE.gastosNoDoc.pagos,'gastosNoDoc');
   }
   el.textContent = fmt(v);
 }
 
 function renderResumen(){
   const c = STATE.capital;
-  const intCap = getInteresRubro(c.intereses, c.monto, 'capital');
-  const totalHon = STATE.honorarios.reduce((s,h)=>s+h.monto,0);
-  const totalIntHon = STATE.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
+  const intCap = getInteresConPeriodos(c.intereses, c.monto, c.pagos, 'capital');
+  const totalHon = STATE.honorarios.reduce((s,h)=>s+(h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0)),0);
+  const totalIntHon = STATE.honorarios.reduce((s,h,i)=>{
+    const mH = h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+    return s+(h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i));
+  },0);
   const totalGDoc = STATE.gastosDoc.reduce((s,g)=>s+g.monto,0);
-  const totalIntGDoc = STATE.gastosDoc.reduce((s,g,i)=>s+getInteresRubro(g.intereses,g.monto,'gdoc_'+i),0);
+  const totalIntGDoc = STATE.gastosDoc.reduce((s,g,i)=>s+getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i),0);
   const gnd = STATE.gastosNoDoc.monto;
-  const intGnd = getInteresRubro(STATE.gastosNoDoc.intereses, gnd, 'gastosNoDoc');
+  const intGnd = getInteresConPeriodos(STATE.gastosNoDoc.intereses, gnd, STATE.gastosNoDoc.pagos, 'gastosNoDoc');
+  // Saldos netos por concepto
+  const sumPagoCon=(pagosArr,con)=>pagosArr.filter(p=>p.concepto===con).reduce((s,p)=>s+p.monto,0);
+  const saldoCap = Math.max(0, c.monto - sumPagoCon(c.pagos,'capital'));
+  const saldoIntCap = Math.max(0, intCap - sumPagoCon(c.pagos,'interes'));
+  const saldoGnd = Math.max(0, gnd - sumPagoCon(STATE.gastosNoDoc.pagos,'gastos'));
+  const saldoIntGnd = Math.max(0, intGnd - sumPagoCon(STATE.gastosNoDoc.pagos,'int_gastos'));
 
-  const allPagos = [
-    ...c.pagos,
-    ...STATE.honorarios.flatMap(h=>h.pagos),
-    ...STATE.gastosDoc.flatMap(g=>g.pagos),
-    ...STATE.gastosNoDoc.pagos
-  ];
-  const totalPagado = allPagos.reduce((s,p)=>s+p.monto,0);
-
-  const totalPlanilla = c.monto+intCap+totalHon+totalIntHon+totalGDoc+totalIntGDoc+gnd+intGnd-totalPagado;
+  const totalPlanilla =
+    saldoCap + saldoIntCap +
+    STATE.honorarios.reduce((s,h,i)=>{
+      const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const intH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      return s + Math.max(0,mH-sumPagoCon(h.pagos,'honorarios')) + Math.max(0,intH-sumPagoCon(h.pagos,'int_honorarios'));
+    },0) +
+    STATE.gastosDoc.reduce((s,g,i)=>{
+      const intG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+      return s + Math.max(0,g.monto-sumPagoCon(g.pagos,'gastos')) + Math.max(0,intG-sumPagoCon(g.pagos,'int_gastos'));
+    },0) +
+    saldoGnd + saldoIntGnd;
 
   let rows='';
-  const tr=(l,v,cls='')=>`<tr class="${cls}"><td>${l}</td><td class="text-end">${v}</td></tr>`;
+  const tr=(l,v,cls='',ind=false)=>`<tr class="${cls}"><td style="${ind?'padding-left:14px;font-size:.82rem':''}">${l}</td><td class="text-end">${v}</td></tr>`;
+  const trPago=(l,v)=>`<tr style="color:#C94B3D;font-size:.8rem"><td style="padding-left:14px">&#128179; ${l}</td><td class="text-end">&#8212;&nbsp;${v}</td></tr>`;
   const sep=()=>`<tr><td colspan="2" style="padding:0;border:none"><hr style="margin:4px 0"></td></tr>`;
-  rows+=tr('Capital Inicial', fmt(c.monto));
-  rows+=tr('Interés s/ Capital Inicial', fmt(intCap));
-  rows+=tr('<strong>Subtotal Capital Inicial</strong>', `<strong>${fmt(c.monto+intCap)}</strong>`,'tr-subtotal');
+
+  // ── Capital ──
+  const hayPagCap = sumPagoCon(c.pagos,'capital')>0;
+  const hayPagIntCap = sumPagoCon(c.pagos,'interes')>0;
+  rows+=tr('Capital', fmt(c.monto));
+  if(c.intereses.activo) rows+=tr('Intereses de capital', fmt(intCap), '', true);
+  if(hayPagCap) rows+=trPago('Pago s/ capital', fmt(sumPagoCon(c.pagos,'capital')));
+  if(hayPagIntCap) rows+=trPago('Pago s/ intereses', fmt(sumPagoCon(c.pagos,'interes')));
+  if(hayPagCap||hayPagIntCap) rows+=tr('Saldo capital', fmt(saldoCap), '', true);
+  if(c.intereses.activo&&(hayPagCap||hayPagIntCap)) rows+=tr('Saldo intereses capital', fmt(saldoIntCap), '', true);
+  rows+=tr('<strong>Capital + Intereses</strong>',`<strong>${fmt(saldoCap+saldoIntCap)}</strong>`,'tr-subtotal');
   rows+=sep();
+
   if(STATE.honorarios.length>0){
     STATE.honorarios.forEach((h,i)=>{
-      rows+=tr(`Honorarios${h.descripcion?' ('+h.descripcion+')':''}`, fmt(h.monto));
-      rows+=tr(`Interés s/ Honorarios${h.descripcion?' ('+h.descripcion+')':''}`, fmt(getInteresRubro(h.intereses,h.monto,'honor_'+i)));
+      const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const intH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      const sH=Math.max(0,mH-sumPagoCon(h.pagos,'honorarios'));
+      const sIH=Math.max(0,intH-sumPagoCon(h.pagos,'int_honorarios'));
+      const hayPagH=sumPagoCon(h.pagos,'honorarios')>0;
+      const hayPagIH=sumPagoCon(h.pagos,'int_honorarios')>0;
+      const umaBadgeOrig = h.usaUMA===true&&h.cantUMA>0 ? ` <span class="badge bg-info text-dark" style="font-size:.6rem">${h.cantUMA} UMA × ${fmt(h.valorUMA)}</span>` : '';
+      const umasDisp = h.usaUMA===true&&h.cantUMA>0 ? (hayPagH ? fmtUMA(calcUMAsRestantes(h)) : h.cantUMA) : 0;
+      const umaBadgeSaldo = h.usaUMA===true&&h.cantUMA>0 ? ` <span class="badge bg-info text-dark" style="font-size:.6rem">${umasDisp} UMA × ${fmt(h.valorUMA)}</span>` : '';
+      const desc = h.descripcion?' ('+h.descripcion+')':'';
+      rows+=tr(`Honorarios${desc}${umaBadgeOrig}`, fmt(mH));
+      if(h.intereses.activo) rows+=tr(`Intereses s/ honorarios${desc}`, fmt(intH), '', true);
+      if(hayPagH) rows+=trPago('Pago s/ honorarios', fmt(sumPagoCon(h.pagos,'honorarios')));
+      if(hayPagIH) rows+=trPago('Pago s/ intereses honorarios', fmt(sumPagoCon(h.pagos,'int_honorarios')));
+      if(hayPagH||hayPagIH) rows+=tr(`Saldo honorarios${umaBadgeSaldo}`, fmt(sH), '', true);
+      if(h.intereses.activo&&(hayPagH||hayPagIH)) rows+=tr('Saldo intereses honorarios', fmt(sIH), '', true);
     });
-    rows+=tr('<strong>Subtotal Honorarios</strong>',`<strong>${fmt(totalHon+totalIntHon)}</strong>`,'tr-subtotal');
+    const sHonT=STATE.honorarios.reduce((s,h,i)=>{const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);const intH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);return s+Math.max(0,mH-sumPagoCon(h.pagos,'honorarios'))+Math.max(0,intH-sumPagoCon(h.pagos,'int_honorarios'));},0);
+    rows+=tr('<strong>Subtotal Honorarios</strong>',`<strong>${fmt(sHonT)}</strong>`,'tr-subtotal');
     rows+=sep();
   }
+
   if(STATE.gastosDoc.length>0){
     STATE.gastosDoc.forEach((g,i)=>{
-      rows+=tr(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}`, fmt(g.monto));
-      if(g.intereses.activo) rows+=tr(`Interés s/ ${g.tipo}`, fmt(getInteresRubro(g.intereses,g.monto,'gdoc_'+i)));
+      const intG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+      const sG=Math.max(0,g.monto-sumPagoCon(g.pagos,'gastos'));
+      const sIG=Math.max(0,intG-sumPagoCon(g.pagos,'int_gastos'));
+      const hayPagG=sumPagoCon(g.pagos,'gastos')>0;
+      const hayPagIG=sumPagoCon(g.pagos,'int_gastos')>0;
+      const desc=g.descripcion?' — '+g.descripcion:'';
+      rows+=tr(`${g.tipo}${desc}`, fmt(g.monto));
+      if(g.intereses.activo) rows+=tr('Intereses s/ gastos doc.', fmt(intG), '', true);
+      if(hayPagG) rows+=trPago('Pago s/ gastos', fmt(sumPagoCon(g.pagos,'gastos')));
+      if(hayPagIG) rows+=trPago('Pago s/ intereses gastos', fmt(sumPagoCon(g.pagos,'int_gastos')));
+      if(hayPagG||hayPagIG) rows+=tr(`Saldo ${g.tipo}${desc}`, fmt(sG), '', true);
+      if(g.intereses.activo&&(hayPagG||hayPagIG)) rows+=tr('Saldo intereses gastos doc.', fmt(sIG), '', true);
     });
-    rows+=tr('<strong>Subtotal Gastos Documentados</strong>',`<strong>${fmt(totalGDoc+totalIntGDoc)}</strong>`,'tr-subtotal');
+    const sGDocT=STATE.gastosDoc.reduce((s,g,i)=>{const intG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);return s+Math.max(0,g.monto-sumPagoCon(g.pagos,'gastos'))+Math.max(0,intG-sumPagoCon(g.pagos,'int_gastos'));},0);
+    rows+=tr('<strong>Subtotal Gastos Documentados</strong>',`<strong>${fmt(sGDocT)}</strong>`,'tr-subtotal');
     rows+=sep();
   }
-  if(gnd>0){
-    rows+=tr('Gastos No Documentados'+(STATE.gastosNoDoc.descripcion?' ('+STATE.gastosNoDoc.descripcion+')':''), fmt(gnd));
-    if(STATE.gastosNoDoc.intereses.activo) rows+=tr('Interés s/ Gastos No Doc.', fmt(intGnd));
-    rows+=sep();
-  }
-  if(allPagos.length>0){
-    allPagos.forEach(p=>{ rows+=tr(`💳 Pago ${fmtFecha(p.fecha)} — ${PAGO_CONCEPTOS[p.concepto]||p.concepto}${p.foja?' Fs.'+p.foja:''}`,`— ${fmt(p.monto)}`,'tr-pago'); });
-    rows+=sep();
-  }
-  const fechaCalc = c.intereses.fechaFin || STATE.honorarios[0]?.intereses.fechaFin || new Date().toISOString().split('T')[0];
-  rows+=`<tr class="tr-total"><td><strong>TOTAL DE LA PLANILLA AL ${fmtFecha(fechaCalc)}</strong></td><td class="text-end"><strong>${fmt(totalPlanilla)}</strong></td></tr>`;
 
+  if(gnd>0){
+    const hayPagGnd=sumPagoCon(STATE.gastosNoDoc.pagos,'gastos')>0;
+    const hayPagIntGnd=sumPagoCon(STATE.gastosNoDoc.pagos,'int_gastos')>0;
+    const desc=STATE.gastosNoDoc.descripcion?' ('+STATE.gastosNoDoc.descripcion+')':'';
+    rows+=tr(`Gastos No documentados${desc}`, fmt(gnd));
+    if(STATE.gastosNoDoc.intereses.activo) rows+=tr('Intereses s/ gastos no doc.', fmt(intGnd), '', true);
+    if(hayPagGnd) rows+=trPago('Pago s/ gastos no doc.', fmt(sumPagoCon(STATE.gastosNoDoc.pagos,'gastos')));
+    if(hayPagIntGnd) rows+=trPago('Pago s/ intereses gastos no doc.', fmt(sumPagoCon(STATE.gastosNoDoc.pagos,'int_gastos')));
+    if(hayPagGnd) rows+=tr(`Saldo gastos no doc.${desc}`, fmt(saldoGnd), '', true);
+    if(STATE.gastosNoDoc.intereses.activo&&hayPagIntGnd) rows+=tr('Saldo intereses gastos no doc.', fmt(saldoIntGnd), '', true);
+    rows+=sep();
+  }
+
+  const fechaCalc = c.intereses.fechaFin || STATE.honorarios[0]?.intereses.fechaFin || new Date().toISOString().split('T')[0];
+  rows+=`<tr class="tr-total"><td><strong>TOTAL AL ${fmtFecha(fechaCalc)}</strong></td><td class="text-end"><strong>${fmt(totalPlanilla)}</strong></td></tr>`;
   document.getElementById('resumenBody').innerHTML = rows;
 }
 
@@ -1241,7 +1728,10 @@ function cargarDatos(d){
   document.getElementById('expOperador').value=e.operador||'';
   document.getElementById('expObs').value=e.obs||'';
   STATE.capital=d.capital||STATE.capital;
-  STATE.honorarios=d.honorarios||[];
+  STATE.honorarios=(d.honorarios||[]).map(h=>({
+    usaUMA: false, cantUMA:0, valorUMA:0, valorUMAFecha:'',
+    ...h
+  }));
   STATE.gastosDoc=d.gastosDoc||[];
   STATE.gastosNoDoc=d.gastosNoDoc||STATE.gastosNoDoc;
   renderTodo();
@@ -1294,136 +1784,338 @@ function eliminarHistorial(i){
 // ═══════════════════════════════════════════════════════════════
 function buildHeader(d){
   const e=d.expediente;
-  return `<div style="font-family:Arial,sans-serif;max-width:168mm;margin:0 auto;background:#fff;padding:10px 16px;">
-    <!-- LOGO OLIVARI -->
-    <div style="text-align:center;padding-bottom:10px;border-bottom:2px solid #4A97A3;margin-bottom:10px">
-      <div style="font-size:2rem;font-weight:900;color:#3D3D3D;letter-spacing:2px">OLIVARI</div>
-      <div style="background:#4A97A3;color:#fff;font-size:.7rem;letter-spacing:2px;padding:3px 14px;display:inline-block;border-radius:3px;margin:3px 0">BIENES RAÍCES — DERECHO E INVERSIONES</div>
-      <div style="font-size:.72rem;color:#888;font-style:italic">Compromiso y profesionalismo</div>
+  return `<div style="font-family:Arial,sans-serif;max-width:168mm;margin:0 auto;background:#fff;padding:7px 12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #4A97A3;padding-bottom:5px;margin-bottom:5px">
+      <div>
+        <div style="font-size:.95rem;font-weight:700;color:#3D3D3D">Dr. Victor Olivari</div>
+        <div style="font-size:.68rem;color:#2B7A86;font-weight:600">Abogado &nbsp;·&nbsp; M.P. 5081</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:.85rem;font-weight:700;color:#2B7A86;letter-spacing:.5px">PRÁCTICA PLANILLA</div>
+        <div style="font-size:.6rem;color:#999;font-style:italic">Tasas: Poder Judicial del Chaco</div>
+      </div>
     </div>
-    <div style="text-align:center;font-size:1.1rem;font-weight:700;color:#2B7A86;letter-spacing:1px;margin-bottom:6px">PRÁCTICA PLANILLA</div>
-    <table style="width:100%;font-size:.78rem;border-collapse:collapse;margin-bottom:8px">
-      <tr><td style="padding:2px 4px;color:#555;width:45%"><strong>Circunscripción:</strong> ${e.circ}</td>
-          <td style="padding:2px 4px;color:#555"><strong>Fuero:</strong> ${e.fuero}</td></tr>
-      <tr><td colspan="2" style="padding:2px 4px;color:#555"><strong>Juzgado:</strong> ${e.juzgado}</td></tr>
-      <tr><td colspan="2" style="padding:2px 4px;color:#555"><strong>Carátula:</strong> ${e.caratula}</td></tr>
-      <tr><td style="padding:2px 4px;color:#555"><strong>Expediente N°:</strong> ${e.numero}</td>
-          <td style="padding:2px 4px;color:#555"><strong>Fecha:</strong> ${fmtFecha(e.fecha)}</td></tr>
+    <table style="width:100%;font-size:.71rem;border-collapse:collapse;margin-bottom:4px">
+      <tr>
+        <td style="padding:1px 4px;color:#555;width:50%"><strong>Circunscripción:</strong> ${e.circ}</td>
+        <td style="padding:1px 4px;color:#555"><strong>Fuero:</strong> ${e.fuero} &nbsp;·&nbsp; <strong>Juzgado:</strong> ${e.juzgado}</td>
+      </tr>
+      <tr><td colspan="2" style="padding:1px 4px;color:#555"><strong>Carátula:</strong> ${e.caratula}</td></tr>
+      <tr>
+        <td style="padding:1px 4px;color:#555"><strong>Expte. N°:</strong> ${e.numero}</td>
+        <td style="padding:1px 4px;color:#555"><strong>Fecha de confección:</strong> ${fmtFecha(e.fecha)}</td>
+      </tr>
     </table>
-    <hr style="border-color:#d0e8eb;margin:6px 0">`;
+    <hr style="border-color:#d0e8eb;margin:3px 0">`;
 }
 
-function buildItemRow(label,monto,fecha,foja,tasa,d,interes){
-  let r=`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">${label}</td>
-    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${fmtFecha(fecha)}</td>
+function buildItemRow(label,subLabel,monto,fecha,foja,tasa,d,interes){
+  let r=`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb;overflow-wrap:break-word;word-break:break-word;hyphens:auto">${label}${subLabel?`<br><span style="font-size:.65rem;color:#555;font-weight:400">${subLabel}</span>`:''}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center;font-size:.65rem;white-space:nowrap">${fmtFecha(fecha)}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${foja||''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(monto)}</td>
-    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${tasa||''}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center;line-height:1.3">${tasa||''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${d||''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${interes!=null?fmt(interes):''}</td></tr>`;
   return r;
 }
 
 function buildExportBody(datos){
-  const c=datos.capital;
-  const intCap=getInteresRubro(c.intereses,c.monto,'capital');
-  const totalHon=datos.honorarios.reduce((s,h)=>s+h.monto,0);
-  const totalIntHon=datos.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
-  const totalGDoc=datos.gastosDoc.reduce((s,g)=>s+g.monto,0);
-  const totalIntGDoc=datos.gastosDoc.reduce((s,g,i)=>s+getInteresRubro(g.intereses,g.monto,'gdoc_'+i),0);
-  const gnd=datos.gastosNoDoc.monto;
-  const intGnd=getInteresRubro(datos.gastosNoDoc.intereses,gnd,'gastosNoDoc');
-  const allPagos=[...c.pagos,...datos.honorarios.flatMap(h=>h.pagos),...datos.gastosDoc.flatMap(g=>g.pagos),...datos.gastosNoDoc.pagos];
-  const totalPagado=allPagos.reduce((s,p)=>s+p.monto,0);
-  const totalPlanilla=c.monto+intCap+totalHon+totalIntHon+totalGDoc+totalIntGDoc+gnd+intGnd-totalPagado;
-  const fechaCalc=c.intereses.fechaFin||new Date().toISOString().split('T')[0];
+  const c = datos.capital;
+  const intCap = getInteresConPeriodos(c.intereses, c.monto, c.pagos, 'capital');
+  const totalHon = datos.honorarios.reduce((s,h)=>s+(h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0)),0);
+  const totalIntHon = datos.honorarios.reduce((s,h,i)=>{
+    const mH = h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+    return s+(h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i));
+  },0);
+  const totalGDoc = datos.gastosDoc.reduce((s,g)=>s+g.monto,0);
+  const totalIntGDoc = datos.gastosDoc.reduce((s,g,i)=>s+getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i),0);
+  const gnd = datos.gastosNoDoc.monto;
+  const intGnd = getInteresConPeriodos(datos.gastosNoDoc.intereses, gnd, datos.gastosNoDoc.pagos, 'gastosNoDoc');
+  const sumPC=(pagosArr,con)=>pagosArr.filter(p=>p.concepto===con).reduce((s,p)=>s+p.monto,0);
+  const saldoCap  = Math.max(0, c.monto - sumPC(c.pagos,'capital'));
+  const saldoICap = Math.max(0, intCap  - sumPC(c.pagos,'interes'));
+  const saldoGnd  = Math.max(0, gnd    - sumPC(datos.gastosNoDoc.pagos,'gastos'));
+  const saldoIntGnd = Math.max(0, intGnd - sumPC(datos.gastosNoDoc.pagos,'int_gastos'));
+  const sHonArr = datos.honorarios.map((h,i)=>{
+    const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+    const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+    return {saldo:Math.max(0,mH-sumPC(h.pagos,'honorarios')), sInt:Math.max(0,iH-sumPC(h.pagos,'int_honorarios'))};
+  });
+  const sGDocArr = datos.gastosDoc.map((g,i)=>{
+    const iG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+    return {saldo:Math.max(0,g.monto-sumPC(g.pagos,'gastos')), sInt:Math.max(0,iG-sumPC(g.pagos,'int_gastos'))};
+  });
+  const totalPlanilla =
+    saldoCap + saldoICap +
+    sHonArr.reduce((s,x)=>s+x.saldo+x.sInt,0) +
+    sGDocArr.reduce((s,x)=>s+x.saldo+x.sInt,0) +
+    saldoGnd + saldoIntGnd;
+  const fechaCalc = c.intereses.fechaFin || datos.honorarios[0]?.intereses.fechaFin || new Date().toISOString().split('T')[0];
+  const totalDevengado = c.monto + intCap + totalHon + totalIntHon + totalGDoc + totalIntGDoc + gnd + intGnd;
+  const pagosRealizados = totalDevengado - totalPlanilla;
 
-  const thStyle='background:#2B7A86;color:#fff;padding:4px 6px;font-size:.72rem;border:1px solid #d0e8eb;';
-  const subtotalStyle='background:#E8F5F7;font-weight:600;';
-  const totalStyle='background:#2B7A86;color:#fff;font-weight:700;font-size:.9rem;';
-  const pagoStyle='color:#C94B3D;font-size:.78rem;';
+  const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:.7rem;border:1px solid #d0e8eb;';
+  const subtotalStyle = 'background:#E8F5F7;font-weight:600;';
+  const pagoStyle = 'color:#C94B3D;font-size:.75rem;';
+  const cellB = 'padding:2px 5px;border:1px solid #d0e8eb;';
+  const cellSm = 'padding:2px 4px;border:1px solid #eee;font-size:.75rem;';
 
-  let html=`<table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:8px">
+  // Filas de pagos (en rojo, orden cronológico)
+  function pagoRows(pagos){
+    return [...(pagos||[])].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).map(p=>{
+      const umaInfo = (p.concepto==='honorarios'&&p.valorUMAalPago)
+        ? ` — UMA: ${fmt(p.valorUMAalPago)}` : '';
+      const label = PAGO_CONCEPTOS[p.concepto] || p.concepto;
+      return `<tr style="${pagoStyle}">
+        <td style="${cellSm}overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#128179; ${label}${umaInfo}</td>
+        <td style="padding:2px 4px;border:1px solid #eee;font-size:.65rem;text-align:center;white-space:nowrap">${fmtFecha(p.fecha)}</td>
+        <td style="${cellSm}text-align:center">${p.foja||''}</td>
+        <td style="${cellSm}text-align:right">&#8212;&nbsp;${fmt(p.monto)}</td>
+        <td colspan="3" style="border:1px solid #eee"></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Filas de intereses por período (tasa fija)
+  function periodoIntRows(periodos, etiquetaBase, tasaLabel){
+    if(!periodos||periodos.length<=1) return '';
+    return periodos.map((p,i)=>`<tr style="font-size:.72rem;background:#f9fdfd">
+      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
+      <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
+      <td style="${cellB}text-align:center">${p.foja||''}</td>
+      <td style="${cellB}text-align:right">${fmt(p.capital)}</td>
+      <td style="${cellB}text-align:center;line-height:1.3">${tasaLabel||''}</td>
+      <td style="${cellB}text-align:center">${p.dias}</td>
+      <td style="${cellB}text-align:right"><strong>${p.interes!=null?fmt(p.interes):'&#8212;'}</strong></td>
+    </tr>`).join('');
+  }
+
+  // Filas de intereses por período (API variable — periodoResultados)
+  function periodoAPIRows(periodoResultados, etiquetaBase, tipoTasa, hideAb=false){
+    if(!periodoResultados||periodoResultados.length===0) return '';
+    return periodoResultados.map((p,i)=>`<tr style="font-size:.72rem;background:#f9fdfd">
+      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
+      <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
+      <td style="${cellB}"></td>
+      <td style="${cellB}text-align:right">${fmt(p.capital)}</td>
+      <td style="${cellB}text-align:center;line-height:1.3">${fmtTasaExport(tipoTasa||'',null,p.tasa,hideAb)}</td>
+      <td style="${cellB}text-align:center">${p.dias||''}</td>
+      <td style="${cellB}text-align:right"><strong>${fmt(p.interes)}</strong></td>
+    </tr>`).join('');
+  }
+
+  // Fila de interés total (caso sin períodos múltiples)
+  function interesSimpleRow(int, intTotal, etiquetaBase, tasaLabel, dias){
+    if(!int.activo||intTotal===0) return '';
+    return `<tr style="font-size:.73rem;background:#f9fdfd">
+      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ ${etiquetaBase}</td>
+      <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(int.fechaInicio)}<br>&rarr;${fmtFecha(int.fechaFin)}</td>
+      <td style="${cellB}"></td>
+      <td style="${cellB}"></td>
+      <td style="${cellB}text-align:center;line-height:1.3">${tasaLabel||''}</td>
+      <td style="${cellB}text-align:center">${dias||''}</td>
+      <td style="${cellB}text-align:right"><strong>${fmt(intTotal)}</strong></td>
+    </tr>`;
+  }
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:6px;table-layout:fixed">
+    <colgroup>
+      <col style="width:30%"><col style="width:11%"><col style="width:6%">
+      <col style="width:18%"><col style="width:11%"><col style="width:8%"><col style="width:16%">
+    </colgroup>
     <thead><tr>
-      <th style="${thStyle}">Concepto</th><th style="${thStyle}">Fecha</th><th style="${thStyle}">Fs.</th>
-      <th style="${thStyle}">Monto</th><th style="${thStyle}">Tasa</th><th style="${thStyle}">Días</th>
-      <th style="${thStyle}">Interés</th>
+      <th style="${thStyle}">Concepto</th>
+      <th style="${thStyle}">Fecha</th><th style="${thStyle}">Fs.</th>
+      <th style="${thStyle}">Monto</th><th style="${thStyle}">Tasa</th>
+      <th style="${thStyle}">D&#237;as</th><th style="${thStyle}">Inter&#233;s</th>
     </tr></thead><tbody>`;
 
-  // Capital
-  const intCapInfo=c.intereses.resultado||calcInteresesFijos(c.monto,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin);
-  html+=buildItemRow('Capital Inicial',c.monto,c.fecha,c.foja,c.intereses.activo?TASA_LABEL[c.intereses.tipoTasa]:null,c.intereses.activo?intCapInfo?.dias:null,c.intereses.activo?intCap:null);
-  if(c.intereses.activo){
-    const periodos=calcularPeriodos(c.monto,c.pagos.filter(p=>p.concepto==='capital'),c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin);
-    if(periodos.length>1) periodos.forEach((p,i)=>{
-      html+=`<tr style="font-size:.72rem"><td style="padding:2px 4px 2px 20px;border:1px solid #d0e8eb;color:#555">↳ Período ${i+1}</td>
-        <td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:center">${fmtFecha(p.desde)}→${fmtFecha(p.hasta)}</td>
-        <td></td><td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:right">${fmt(p.capital)}</td>
-        <td></td><td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:center">${p.dias}</td>
-        <td style="padding:2px 4px;border:1px solid #d0e8eb;text-align:right">${p.interes!=null?fmt(p.interes):'—'}</td></tr>`;
-    });
+  // ── CAPITAL ──
+  const capPagosBase = c.pagos.filter(p=>p.concepto==='capital'&&p.fecha&&p.monto>0);
+  const capPeriodos = (c.intereses.activo&&c.intereses.tipoTasa&&!c.intereses.periodoResultados)
+    ? calcularPeriodos(c.monto, capPagosBase, c.intereses.tipoTasa, c.intereses.tasaPctAnual, c.intereses.fechaInicio, c.intereses.fechaFin)
+    : [];
+  const capMulti = capPeriodos.length > 1;
+  const capHasPR = c.intereses.activo && c.intereses.periodoResultados?.length > 0;
+  const capInteresLabel = c.intereses.activo && c.intereses.tipoTasa ? ('Intereses según ' + (TASA_ABREV[c.intereses.tipoTasa]||c.intereses.tipoTasa)) : '';
+  html += buildItemRow('Capital', capInteresLabel, c.monto, c.intereses.fechaInicio||c.fecha, c.foja, null, null, null);
+  html += pagoRows(c.pagos.filter(p=>p.concepto==='capital'));
+  if(capHasPR){
+    html += periodoAPIRows(c.intereses.periodoResultados, 'capital', c.intereses.tipoTasa, true);
+  } else if(capMulti){
+    html += periodoIntRows(capPeriodos, 'capital', fmtTasaExport(c.intereses.tipoTasa, c.intereses.tasaPctAnual, null, true));
+  } else {
+    html += interesSimpleRow(c.intereses, intCap, 'capital', fmtTasaExport(c.intereses.tipoTasa, c.intereses.tasaPctAnual, c.intereses.resultado?.tasa, true), c.intereses.resultado?.dias||capPeriodos[0]?.dias);
   }
-  c.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
-    <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
-    <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
-    <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
-    <td colspan="3"></td></tr>`);
-  html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Capital Inicial + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(c.monto+intCap)}</strong></td></tr>`;
+  html += pagoRows(c.pagos.filter(p=>p.concepto==='interes'));
+  html += `<tr style="${subtotalStyle}">
+    <td colspan="3" style="${cellB}"><strong>Saldo Capital + Intereses</strong></td>
+    <td colspan="3"></td>
+    <td style="${cellB}text-align:right"><strong>${fmt(saldoCap+saldoICap)}</strong></td>
+  </tr>`;
 
-  // Honorarios
+  // ── HONORARIOS ──
   if(datos.honorarios.length>0){
     datos.honorarios.forEach((h,i)=>{
-      const intH=getInteresRubro(h.intereses,h.monto,'honor_'+i);
-      const intHInfo=h.intereses.resultado||calcInteresesFijos(h.monto,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin);
-      html+=buildItemRow(`Honorarios${h.descripcion?' — '+h.descripcion:''}`,h.monto,h.fecha,h.foja,h.intereses.activo?TASA_LABEL[h.intereses.tipoTasa]:null,h.intereses.activo?intHInfo?.dias:null,h.intereses.activo?intH:null);
-      h.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
-        <td colspan="3"></td></tr>`);
+      const usaUMA = h.usaUMA === true;
+      const mH = usaUMA ? (h.cantUMA||0)*(h.valorUMA||0) : (h.monto||0);
+      const intH = usaUMA ? getInteresHonorariosUMA(h,i) : getInteresConPeriodos(h.intereses, mH, h.pagos, 'honor_'+i);
+      const honPagosBase = h.pagos.filter(p=>p.concepto==='honorarios'&&p.fecha&&p.monto>0);
+      const honPer = (h.intereses.activo&&h.intereses.tipoTasa&&!h.intereses.periodoResultados)
+        ? (usaUMA
+            ? calcPeriodosUMA(h.cantUMA||0, h.valorUMA||0, honPagosBase, h.intereses.tipoTasa, h.intereses.tasaPctAnual, h.intereses.fechaInicio, h.intereses.fechaFin)
+            : calcularPeriodos(mH, honPagosBase, h.intereses.tipoTasa, h.intereses.tasaPctAnual, h.intereses.fechaInicio, h.intereses.fechaFin))
+        : [];
+      const honMulti = honPer.length > 1;
+      const honHasPR = h.intereses.activo && h.intereses.periodoResultados?.length > 0;
+      const umaLabel = usaUMA && h.cantUMA>0 ? ` (${fmtUMA(h.cantUMA)} UMA &times; ${fmt(h.valorUMA)})` : '';
+      html += buildItemRow(`Honorarios${h.descripcion?' &#8212; '+h.descripcion:''}${umaLabel}`, '', mH, h.fecha, h.foja, null, null, null);
+      html += pagoRows(h.pagos.filter(p=>p.concepto==='honorarios'));
+      if(honHasPR){
+        html += periodoAPIRows(h.intereses.periodoResultados, 'honorarios', h.intereses.tipoTasa);
+      } else if(honMulti){
+        html += periodoIntRows(honPer, 'honorarios', fmtTasaExport(h.intereses.tipoTasa, h.intereses.tasaPctAnual));
+      } else {
+        html += interesSimpleRow(h.intereses, intH, 'honorarios', fmtTasaExport(h.intereses.tipoTasa, h.intereses.tasaPctAnual, h.intereses.resultado?.tasa), h.intereses.resultado?.dias||honPer[0]?.dias);
+      }
+      html += pagoRows(h.pagos.filter(p=>p.concepto==='int_honorarios'));
     });
-    html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Honorarios + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(totalHon+totalIntHon)}</strong></td></tr>`;
+    html += `<tr style="${subtotalStyle}">
+      <td colspan="3" style="${cellB}"><strong>Saldo Honorarios + Intereses</strong></td>
+      <td colspan="3"></td>
+      <td style="${cellB}text-align:right"><strong>${fmt(sHonArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
+    </tr>`;
   }
 
-  // Gastos doc
+  // ── GASTOS DOCUMENTADOS ──
   if(datos.gastosDoc.length>0){
     datos.gastosDoc.forEach((g,i)=>{
-      const intG=getInteresRubro(g.intereses,g.monto,'gdoc_'+i);
-      const intGInfo=g.intereses.resultado||calcInteresesFijos(g.monto,g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.fechaInicio,g.intereses.fechaFin);
-      html+=buildItemRow(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}`,g.monto,g.fecha,g.foja,g.intereses.activo?TASA_LABEL[g.intereses.tipoTasa]:null,g.intereses.activo?intGInfo?.dias:null,g.intereses.activo?intG:null);
-      g.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
-        <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
-        <td colspan="3"></td></tr>`);
+      const intG = getInteresConPeriodos(g.intereses, g.monto, g.pagos, 'gdoc_'+i);
+      const gDocPagosBase = g.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+      const gDocPer = (g.intereses.activo&&g.intereses.tipoTasa&&!g.intereses.periodoResultados)
+        ? calcularPeriodos(g.monto, gDocPagosBase, g.intereses.tipoTasa, g.intereses.tasaPctAnual, g.intereses.fechaInicio, g.intereses.fechaFin)
+        : [];
+      const gDocMulti = gDocPer.length > 1;
+      const gDocHasPR = g.intereses.activo && g.intereses.periodoResultados?.length > 0;
+      const gInteresLabel = g.intereses.activo && g.intereses.tipoTasa ? ('Intereses según ' + (TASA_ABREV[g.intereses.tipoTasa]||g.intereses.tipoTasa)) : '';
+      html += buildItemRow(`${g.tipo}${g.descripcion?' &#8212; '+g.descripcion:''}`, gInteresLabel, g.monto, g.fecha, g.foja, null, null, null);
+      html += pagoRows(g.pagos.filter(p=>p.concepto==='gastos'));
+      if(gDocHasPR){
+        html += periodoAPIRows(g.intereses.periodoResultados, 'gastos documentados', g.intereses.tipoTasa, true);
+      } else if(gDocMulti){
+        html += periodoIntRows(gDocPer, 'gastos documentados', fmtTasaExport(g.intereses.tipoTasa, g.intereses.tasaPctAnual, null, true));
+      } else {
+        html += interesSimpleRow(g.intereses, intG, 'gastos documentados', fmtTasaExport(g.intereses.tipoTasa, g.intereses.tasaPctAnual, g.intereses.resultado?.tasa, true), g.intereses.resultado?.dias||gDocPer[0]?.dias);
+      }
+      html += pagoRows(g.pagos.filter(p=>p.concepto==='int_gastos'));
     });
-    html+=`<tr style="${subtotalStyle}"><td colspan="3" style="padding:3px 6px;border:1px solid #d0e8eb"><strong>Subtotal Gastos Documentados + Intereses</strong></td><td colspan="3"></td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right"><strong>${fmt(totalGDoc+totalIntGDoc)}</strong></td></tr>`;
+    html += `<tr style="${subtotalStyle}">
+      <td colspan="3" style="${cellB}"><strong>Saldo Gastos Documentados + Intereses</strong></td>
+      <td colspan="3"></td>
+      <td style="${cellB}text-align:right"><strong>${fmt(sGDocArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
+    </tr>`;
   }
 
-  // Gastos no doc
+  // ── GASTOS NO DOCUMENTADOS ──
   if(gnd>0){
-    html+=buildItemRow(`Gastos No Documentados${datos.gastosNoDoc.descripcion?' — '+datos.gastosNoDoc.descripcion:''}`,gnd,datos.gastosNoDoc.fecha,datos.gastosNoDoc.foja,datos.gastosNoDoc.intereses.activo?TASA_LABEL[datos.gastosNoDoc.intereses.tipoTasa]:null,null,datos.gastosNoDoc.intereses.activo?intGnd:null);
-    datos.gastosNoDoc.pagos.forEach(p=>html+=`<tr style="${pagoStyle}"><td style="padding:2px 4px;border:1px solid #eee">💳 ${PAGO_CONCEPTOS[p.concepto]}</td>
-      <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${fmtFecha(p.fecha)}</td>
-      <td style="padding:2px 4px;border:1px solid #eee;text-align:center">${p.foja||''}</td>
-      <td style="padding:2px 4px;border:1px solid #eee;text-align:right">— ${fmt(p.monto)}</td>
-      <td colspan="3"></td></tr>`);
+    const gndPagosBase = datos.gastosNoDoc.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+    const gndPer = (datos.gastosNoDoc.intereses.activo&&datos.gastosNoDoc.intereses.tipoTasa&&!datos.gastosNoDoc.intereses.periodoResultados)
+      ? calcularPeriodos(gnd, gndPagosBase, datos.gastosNoDoc.intereses.tipoTasa, datos.gastosNoDoc.intereses.tasaPctAnual, datos.gastosNoDoc.intereses.fechaInicio, datos.gastosNoDoc.intereses.fechaFin)
+      : [];
+    const gndMulti = gndPer.length > 1;
+    const gndHasPR = datos.gastosNoDoc.intereses.activo && datos.gastosNoDoc.intereses.periodoResultados?.length > 0;
+    const gndInteresLabel = datos.gastosNoDoc.intereses.activo && datos.gastosNoDoc.intereses.tipoTasa ? ('Intereses según ' + (TASA_ABREV[datos.gastosNoDoc.intereses.tipoTasa]||datos.gastosNoDoc.intereses.tipoTasa)) : '';
+    const gndPagos = datos.gastosNoDoc.pagos;
+    html += buildItemRow(`Gastos No documentados${datos.gastosNoDoc.descripcion?' &#8212; '+datos.gastosNoDoc.descripcion:''}`, gndInteresLabel, gnd, datos.gastosNoDoc.fecha, datos.gastosNoDoc.foja, null, null, null);
+    html += pagoRows(gndPagos.filter(p=>p.concepto==='gastos'));
+    if(gndHasPR){
+      html += periodoAPIRows(datos.gastosNoDoc.intereses.periodoResultados, 'gastos no documentados', datos.gastosNoDoc.intereses.tipoTasa, true);
+    } else if(gndMulti){
+      html += periodoIntRows(gndPer, 'gastos no documentados', fmtTasaExport(datos.gastosNoDoc.intereses.tipoTasa, datos.gastosNoDoc.intereses.tasaPctAnual, null, true));
+    } else {
+      html += interesSimpleRow(datos.gastosNoDoc.intereses, intGnd, 'gastos no documentados', fmtTasaExport(datos.gastosNoDoc.intereses.tipoTasa, datos.gastosNoDoc.intereses.tasaPctAnual, datos.gastosNoDoc.intereses.resultado?.tasa, true), datos.gastosNoDoc.intereses.resultado?.dias||gndPer[0]?.dias);
+    }
+    html += pagoRows(gndPagos.filter(p=>p.concepto==='int_gastos'));
+    const hayPagGndAny = sumPC(gndPagos,'gastos')>0||sumPC(gndPagos,'int_gastos')>0;
+    if(hayPagGndAny) html += `<tr style="${subtotalStyle}">
+      <td colspan="3" style="${cellB}"><strong>Saldo Gastos No Documentados + Intereses</strong></td>
+      <td colspan="3"></td>
+      <td style="${cellB}text-align:right"><strong>${fmt(saldoGnd+saldoIntGnd)}</strong></td>
+    </tr>`;
   }
 
-  // RESUMEN FINAL
-  html+=`</tbody></table>
-  <table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px">
-    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Capital Inicial</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(c.monto)}</td></tr>
-    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Capital Inicial</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(intCap)}</td></tr>
-    ${totalHon>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Honorarios</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalHon)}</td></tr>
-    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Honorarios</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalIntHon)}</td></tr>`:''}
-    ${totalGDoc>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Gastos Documentados</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalGDoc)}</td></tr>
-    <tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Interés s/ Gastos Doc.</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(totalIntGDoc)}</td></tr>`:''}
-    ${gnd>0?`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb">Gastos No Documentados</td><td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(gnd)}</td></tr>`:''}
-    ${totalPagado>0?`<tr style="${pagoStyle}"><td style="padding:3px 6px;border:1px solid #eee">Pagos parciales imputados</td><td style="padding:3px 6px;border:1px solid #eee;text-align:right">— ${fmt(totalPagado)}</td></tr>`:''}
-    <tr style="${totalStyle}"><td style="padding:6px;border:1px solid #2B7A86"><strong>TOTAL DE LA PLANILLA AL ${fmtFecha(fechaCalc)}</strong></td>
-      <td style="padding:6px;border:1px solid #2B7A86;text-align:right;font-size:1rem"><strong>${fmt(totalPlanilla)}</strong></td></tr>
-  </table></div>`;
+  html += '</tbody></table>';
+
+  // ── TOTALES PRE-RESUMEN ──
+  const sPC = 'padding:4px 8px;border:1px solid #d0e8eb;font-size:.77rem;';
+  html += `
+  <div style="margin-top:8px;page-break-inside:avoid">
+    <table style="width:55%;min-width:290px;border-collapse:collapse;font-size:.77rem">
+      <tbody>
+        <tr>
+          <td style="${sPC}">(+) Total devengado</td>
+          <td style="${sPC}text-align:right;width:120px">${fmt(totalDevengado)}</td>
+        </tr>
+        <tr>
+          <td style="${sPC}color:#C94B3D;">(-) Pagos realizados</td>
+          <td style="${sPC}text-align:right;color:#C94B3D;">${pagosRealizados>0?'&#8722; '+fmt(pagosRealizados):fmt(0)}</td>
+        </tr>
+        <tr style="font-weight:700;background:#E8F5F7;">
+          <td style="${sPC}border-color:#4A97A3;">(=) Total de Planilla</td>
+          <td style="${sPC}text-align:right;border-color:#4A97A3;">${fmt(totalPlanilla)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  // ── RESUMEN DE SALDOS ADEUDADOS ──
+  const sC = 'padding:3px 7px;border:1px solid #d0e8eb;';
+  html += `
+  <div style="margin-top:10px;page-break-inside:avoid">
+    <div style="font-weight:700;color:#2B7A86;font-size:.78rem;margin-bottom:4px;
+                text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #4A97A3;padding-bottom:2px">
+      Resumen de saldos adeudados
+    </div>
+    <table style="width:74%;min-width:390px;border-collapse:collapse;font-size:.77rem">
+      <thead><tr>
+        <th style="background:#2B7A86;color:#fff;${sC}text-align:left">&#205;tem</th>
+        <th style="background:#2B7A86;color:#fff;${sC}text-align:right;width:110px">Monto</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="${sC}">Capital</td><td style="${sC}text-align:right">${fmt(saldoCap)}</td></tr>
+        ${intCap>0?`<tr><td style="${sC}">Intereses de capital</td><td style="${sC}text-align:right">${fmt(saldoICap)}</td></tr>`:''}
+        ${datos.honorarios.length>0?datos.honorarios.map((h,i)=>{
+          const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+          const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+          const sH=Math.max(0,mH-sumPC(h.pagos,'honorarios'));
+          const sIH=Math.max(0,iH-sumPC(h.pagos,'int_honorarios'));
+          const usaUMA=h.usaUMA===true;
+          const umaRest=usaUMA&&h.valorUMA>0?sH/h.valorUMA:0;
+          const umaIntRest=usaUMA&&h.valorUMA>0?sIH/h.valorUMA:0;
+          const umaInfo=usaUMA&&umaRest>0?`<br><span style="font-size:.65rem;color:#555">${fmtUMA(umaRest)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
+          const umaIntInfo=usaUMA&&umaIntRest>0?`<br><span style="font-size:.65rem;color:#555">${fmtUMA(umaIntRest)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
+          return `<tr><td style="${sC}">Honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaInfo}</td><td style="${sC}text-align:right">${fmt(sH)}</td></tr>`
+            +(h.intereses.activo&&sIH>0?`<tr><td style="${sC}">Intereses de honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaIntInfo}</td><td style="${sC}text-align:right">${fmt(sIH)}</td></tr>`:'');
+        }).join(''):''}
+        ${datos.gastosDoc.length>0?datos.gastosDoc.map((g,i)=>{
+          const iG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+          const sG=Math.max(0,g.monto-sumPC(g.pagos,'gastos'));
+          const sIG=Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
+          return `<tr><td style="${sC}">Gastos documentados${g.descripcion?' ('+g.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(sG)}</td></tr>`
+            +(g.intereses.activo&&sIG>0?`<tr><td style="${sC}">Intereses sobre gastos documentados${g.descripcion?' ('+g.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(sIG)}</td></tr>`:'');
+        }).join(''):''}
+        ${gnd>0?`<tr><td style="${sC}">Gastos No documentados${datos.gastosNoDoc.descripcion?' ('+datos.gastosNoDoc.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(saldoGnd)}</td></tr>`:''}
+        ${saldoIntGnd>0?`<tr><td style="${sC}">Intereses sobre gastos No documentados</td><td style="${sC}text-align:right">${fmt(saldoIntGnd)}</td></tr>`:''}
+        <tr style="background:#2B7A86;color:#fff;font-weight:700">
+          <td style="${sC}font-size:.8rem">TOTAL AL ${fmtFecha(fechaCalc)}</td>
+          <td style="${sC}text-align:right;font-size:.85rem">${fmt(totalPlanilla)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:.58rem;color:#aaa;margin-top:4px;text-align:right;font-style:italic">Tasas extraídas del sitio oficial del Poder Judicial del Chaco (justiciachaco.gov.ar)</div>
+  </div></div>`;
+
   return html;
 }
 
@@ -1440,42 +2132,299 @@ function exportarExcel(){
   const d = recolectarDatos();
   const e = d.expediente;
   const c = d.capital;
-  const intCap = getInteresRubro(c.intereses,c.monto,'capital');
-  const totalHon = d.honorarios.reduce((s,h)=>s+h.monto,0);
-  const totalIntHon = d.honorarios.reduce((s,h,i)=>s+getInteresRubro(h.intereses,h.monto,'honor_'+i),0);
-  const totalGDoc = d.gastosDoc.reduce((s,g)=>s+g.monto,0);
-  const gnd=d.gastosNoDoc.monto;
-  const intGnd=getInteresRubro(d.gastosNoDoc.intereses,gnd,'gastosNoDoc');
-  const allPagos=[...c.pagos,...d.honorarios.flatMap(h=>h.pagos),...d.gastosDoc.flatMap(g=>g.pagos),...d.gastosNoDoc.pagos];
-  const totalPagado=allPagos.reduce((s,p)=>s+p.monto,0);
-  const total=c.monto+intCap+totalHon+totalIntHon+totalGDoc+gnd+intGnd-totalPagado;
+  const intCap = getInteresConPeriodos(c.intereses,c.monto,c.pagos,'capital');
+  const sumPC=(arr,con)=>arr.filter(p=>p.concepto===con).reduce((s,p)=>s+p.monto,0);
+  const saldoCap  = Math.max(0, c.monto - sumPC(c.pagos,'capital'));
+  const saldoICap = Math.max(0, intCap  - sumPC(c.pagos,'interes'));
+  const gnd    = d.gastosNoDoc.monto;
+  const intGnd = getInteresConPeriodos(d.gastosNoDoc.intereses,gnd,d.gastosNoDoc.pagos,'gastosNoDoc');
+  const total =
+    saldoCap + saldoICap +
+    d.honorarios.reduce((s,h,i)=>{
+      const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      return s+Math.max(0,mH-sumPC(h.pagos,'honorarios'))+Math.max(0,iH-sumPC(h.pagos,'int_honorarios'));
+    },0) +
+    d.gastosDoc.reduce((s,g,i)=>{
+      const iG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+      return s+Math.max(0,g.monto-sumPC(g.pagos,'gastos'))+Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
+    },0) +
+    Math.max(0,gnd-sumPC(d.gastosNoDoc.pagos,'gastos')) + Math.max(0,intGnd-sumPC(d.gastosNoDoc.pagos,'int_gastos'));
+  const fechaCalc = c.intereses.fechaFin||d.honorarios[0]?.intereses.fechaFin||new Date().toISOString().split('T')[0];
+  const saldoGnd = Math.max(0, gnd - sumPC(d.gastosNoDoc.pagos,'gastos'));
+  const totalDevengado = c.monto + intCap +
+    d.honorarios.reduce((s,h,i)=>{const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);return s+mH+iH;},0)+
+    d.gastosDoc.reduce((s,g,i)=>s+g.monto+getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i),0)+
+    gnd + intGnd;
+  const pagosRealizados = totalDevengado - total;
 
-  const rows=[
-    ['PRÁCTICA PLANILLA — OLIVARI Bienes Raíces y Derecho'],
-    ['Circunscripción:',e.circ,'Fuero:',e.fuero],['Juzgado:',e.juzgado],
-    ['Carátula:',e.caratula],['Expediente:',e.numero,'Fecha:',fmtFecha(e.fecha)],[],
-    ['CONCEPTO','FECHA','Fs.','MONTO ($)','TASA','DÍAS','INTERÉS ($)'],
-    ['Capital Inicial',fmtFecha(c.fecha),c.foja,c.monto,c.intereses.activo?TASA_LABEL[c.intereses.tipoTasa]:'',c.intereses.activo?getInteresRubro(c.intereses,c.monto,'capital')/c.monto*365:'',c.intereses.activo?intCap:''],
-    ...c.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','','']),
-    ['Subtotal Capital','','','','',' ',c.monto+intCap],[],
-    ...d.honorarios.flatMap((h,i)=>[
-      [h.descripcion||'Honorarios',fmtFecha(h.fecha),h.foja,h.monto,h.intereses.activo?TASA_LABEL[h.intereses.tipoTasa]:'','',h.intereses.activo?getInteresRubro(h.intereses,h.monto,'honor_'+i):''],
-      ...h.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','',''])
-    ]),
-    totalHon>0?['Subtotal Honorarios','','','',' ',' ',totalHon+totalIntHon]:[],
-    ...d.gastosDoc.flatMap((g,i)=>[
-      [g.tipo+(g.descripcion?' — '+g.descripcion:''),fmtFecha(g.fecha),g.foja,g.monto,g.intereses.activo?TASA_LABEL[g.intereses.tipoTasa]:'','',g.intereses.activo?getInteresRubro(g.intereses,g.monto,'gdoc_'+i):''],
-      ...g.pagos.map(p=>['  ↳ '+PAGO_CONCEPTOS[p.concepto],fmtFecha(p.fecha),p.foja,-p.monto,'','',''])
-    ]),
-    gnd>0?['Gastos No Documentados'+(d.gastosNoDoc.descripcion?' — '+d.gastosNoDoc.descripcion:''),fmtFecha(d.gastosNoDoc.fecha),d.gastosNoDoc.foja,gnd,'','',d.gastosNoDoc.intereses.activo?intGnd:'']:[],
-    totalPagado>0?['Total pagos imputados','','','',' ',' ',-totalPagado]:[],
-    [],[`TOTAL DE LA PLANILLA AL ${fmtFecha(c.intereses.fechaFin||'')}`,'',' ','','','',total]
-  ].filter(r=>r&&r.length>0);
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:40},{wch:12},{wch:8},{wch:14},{wch:28},{wch:8},{wch:14}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Planilla Judicial');
-  XLSX.writeFile(wb,`PlanillaJudicial_${(e.numero||'SN').replace(/\//g,'-')}.xlsx`);
+  const wb = XLSX.utils.book_new();
+  const ws = {};
+  const merges = [];
+  let R = 0;
+  let subRows=[], secItemDRows=[], secPagoDRows=[], secIntGRows=[], pagoRefs=[];
+  let resRowStart=null, resRowEnd=null;
+  const enc = (col,row) => XLSX.utils.encode_cell({c:col,r:row});
+  const bdr = {top:{style:'thin',color:{rgb:'B0C8CC'}},bottom:{style:'thin',color:{rgb:'B0C8CC'}},left:{style:'thin',color:{rgb:'B0C8CC'}},right:{style:'thin',color:{rgb:'B0C8CC'}}};
+  const bdrB = {top:{style:'medium',color:{rgb:'2B7A86'}},bottom:{style:'medium',color:{rgb:'2B7A86'}},left:{style:'medium',color:{rgb:'2B7A86'}},right:{style:'medium',color:{rgb:'2B7A86'}}};
+  const S = {
+    title:   {font:{bold:true,sz:12,color:{rgb:'1A5A62'}}},
+    iLbl:    {font:{bold:true,sz:9,color:{rgb:'444444'}}},
+    iVal:    {font:{sz:9}},
+    hdr:     {font:{bold:true,sz:9,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'2B7A86'}},border:bdr,alignment:{horizontal:'center',vertical:'center',wrapText:true}},
+    item:    {font:{sz:9},border:bdr,alignment:{wrapText:true,vertical:'top'}},
+    itemC:   {font:{sz:9},border:bdr,alignment:{horizontal:'center',vertical:'top',wrapText:true}},
+    money:   {font:{sz:9},border:bdr,alignment:{horizontal:'right',vertical:'top'},numFmt:'"$"#,##0.00'},
+    pago:    {font:{sz:9,color:{rgb:'8B2020'},italic:true},border:bdr,alignment:{wrapText:true,vertical:'top'}},
+    pagoC:   {font:{sz:9,color:{rgb:'8B2020'},italic:true},border:bdr,alignment:{horizontal:'center',vertical:'top'}},
+    pagoM:   {font:{sz:9,color:{rgb:'8B2020'},italic:true},border:bdr,alignment:{horizontal:'right',vertical:'top'},numFmt:'"$"#,##0.00'},
+    per:     {font:{sz:8,color:{rgb:'444444'}},fill:{patternType:'solid',fgColor:{rgb:'F5FBFC'}},border:bdr,alignment:{wrapText:true,vertical:'top'}},
+    perC:    {font:{sz:8,color:{rgb:'444444'}},fill:{patternType:'solid',fgColor:{rgb:'F5FBFC'}},border:bdr,alignment:{horizontal:'center',vertical:'top',wrapText:true}},
+    perM:    {font:{sz:8,color:{rgb:'444444'}},fill:{patternType:'solid',fgColor:{rgb:'F5FBFC'}},border:bdr,alignment:{horizontal:'right',vertical:'top'},numFmt:'"$"#,##0.00'},
+    sub:     {font:{bold:true,sz:9},fill:{patternType:'solid',fgColor:{rgb:'E8F5F7'}},border:bdr,alignment:{wrapText:true,vertical:'center'}},
+    subM:    {font:{bold:true,sz:9},fill:{patternType:'solid',fgColor:{rgb:'E8F5F7'}},border:bdr,alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00'},
+    totH:    {font:{bold:true,sz:11,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'1A5A62'}},border:bdrB,alignment:{wrapText:true,vertical:'center'}},
+    totM:    {font:{bold:true,sz:11,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'1A5A62'}},border:bdrB,alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00'},
+    blank:   {border:bdr}
+  };
+  function cset(col,row,v,t,s,f){ const cell={v,t:t||'s',s:s||{}}; if(f) cell.f=f; ws[enc(col,row)]=cell; }
+  function mfill(row,c1,c2,s){ merges.push({s:{r:row,c:c1},e:{r:row,c:c2}}); for(let c=c1+1;c<=c2;c++) cset(c,row,'','s',s||S.blank); }
+
+  // Title
+  cset(0,R,'PRÁCTICA PLANILLA — Dr. Victor Olivari · Abogado · M.P. 5081','s',S.title);
+  mfill(R,0,6,S.title); R++;
+
+  // Expediente info
+  function infoR(l1,v1,l2,v2){
+    cset(0,R,l1||'','s',S.iLbl); cset(1,R,v1||'','s',S.iVal); mfill(R,1,2,S.iVal);
+    if(l2){cset(3,R,l2||'','s',S.iLbl); cset(4,R,v2||'','s',S.iVal); mfill(R,4,6,S.iVal);}
+    R++;
+  }
+  infoR('Circunscripción:',e.circ,'Fuero:',e.fuero);
+  infoR('Juzgado:',e.juzgado);
+  infoR('Carátula:',e.caratula);
+  infoR('Expediente:',e.numero,'Fecha:',fmtFecha(e.fecha));
+  R++;
+
+  // Column headers
+  ['CONCEPTO','FECHA','Fs.','MONTO ($)','TASA','DÍAS','INTERÉS ($)'].forEach((h,ci)=>cset(ci,R,h,'s',S.hdr));
+  R++;
+
+  // Data row builder
+  function dRow(concepto,fecha,foja,monto,tasa,dias,interes,ov){
+    const o=ov||{};
+    cset(0,R,concepto||'','s',o[0]||S.item);
+    cset(1,R,fecha||'','s',o[1]||S.itemC);
+    cset(2,R,foja||'','s',o[2]||S.itemC);
+    if(monto!=null){ cset(3,R,monto,'n',o[3]||S.money); secItemDRows.push(R); } else cset(3,R,'','s',S.blank);
+    cset(4,R,tasa||'','s',o[4]||S.item);
+    if(dias!=null&&dias!=='') cset(5,R,typeof dias==='number'?dias:parseInt(dias)||0,'n',o[5]||S.itemC); else cset(5,R,'','s',S.blank);
+    if(interes!=null) cset(6,R,interes,'n',o[6]||S.money); else cset(6,R,'','s',S.blank);
+    R++;
+  }
+
+  function xlPagos(pagos){
+    [...(pagos||[])].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).forEach(p=>{
+      const uStr=p.concepto==='honorarios'&&p.valorUMAalPago?` — UMA: ${fmt(p.valorUMAalPago)}`:'';
+      const lbl=PAGO_CONCEPTOS[p.concepto]||p.concepto;
+      cset(0,R,`↳ ${lbl}${uStr}`,'s',S.pago);
+      cset(1,R,fmtFecha(p.fecha),'s',S.pagoC); cset(2,R,p.foja||'','s',S.pagoC);
+      cset(3,R,-p.monto,'n',S.pagoM);
+      cset(4,R,'','s',S.pago); cset(5,R,'','s',S.pago); cset(6,R,'','s',S.pago);
+      secPagoDRows.push(R); pagoRefs.push(R);
+      R++;
+    });
+  }
+
+  function xlPeriodos(per,label,tLbl,tna){
+    if(!per||per.length<=1) return;
+    per.forEach((p,i)=>{
+      cset(0,R,`  ↳ Intereses s/ ${label} — Período ${i+1}`,'s',S.per);
+      cset(1,R,`${fmtFecha(p.desde)} → ${fmtFecha(p.hasta)}`,'s',S.perC);
+      cset(2,R,'','s',S.per); cset(3,R,p.capital,'n',S.perM);
+      cset(4,R,tLbl||'','s',S.perC); cset(5,R,p.dias,'n',S.perC);
+      const f=tna!=null?`D${R+1}*(${tna}/365)*F${R+1}`:null;
+      cset(6,R,p.interes!=null?p.interes:0,'n',S.perM,f||undefined);
+      secIntGRows.push(R); R++;
+    });
+  }
+
+  function xlAPI(pr,label,tipoTasa){
+    if(!pr||!pr.length) return;
+    pr.forEach((p,i)=>{
+      cset(0,R,`  ↳ Intereses s/ ${label} — Período ${i+1}`,'s',S.per);
+      cset(1,R,`${fmtFecha(p.desde)} → ${fmtFecha(p.hasta)}`,'s',S.perC);
+      cset(2,R,'','s',S.per); cset(3,R,p.capital,'n',S.perM);
+      cset(4,R,fmtTasaXL(tipoTasa||'',null,p.tasa),'s',S.perC);
+      cset(5,R,p.dias||0,'n',S.perC);
+      const td=parseFloat(p.tasa||0)/100;
+      const f=td>0?`D${R+1}*${td}`:null;
+      cset(6,R,p.interes,'n',S.perM,f||undefined);
+      secIntGRows.push(R); R++;
+    });
+  }
+
+  function xlSimple(int,intTotal,label,tLbl,dias,monto){
+    if(!int.activo||!intTotal) return;
+    cset(0,R,`  ↳ Intereses s/ ${label}`,'s',S.per);
+    cset(1,R,`${fmtFecha(int.fechaInicio)} → ${fmtFecha(int.fechaFin)}`,'s',S.perC);
+    cset(2,R,'','s',S.per);
+    if(monto!=null) cset(3,R,monto,'n',S.perM); else cset(3,R,'','s',S.per);
+    cset(4,R,tLbl||'','s',S.perC);
+    const diasN=dias?(typeof dias==='number'?dias:parseInt(dias)||0):null;
+    if(diasN) cset(5,R,diasN,'n',S.perC); else cset(5,R,'','s',S.per);
+    const tna=getTNAFija(int.tipoTasa,int.tasaPctAnual);
+    let f=null;
+    if(tna!=null&&monto!=null&&diasN) f=`D${R+1}*(${tna}/365)*F${R+1}`;
+    else if(int.resultado?.tasa){const td=parseFloat(int.resultado.tasa)/100;if(td>0&&monto!=null)f=`D${R+1}*${td}`;}
+    cset(6,R,intTotal,'n',S.perM,f||undefined);
+    secIntGRows.push(R); R++;
+  }
+
+  function xlSub(label,val){
+    const parts=[...secItemDRows.map(r=>`D${r+1}`),...secPagoDRows.map(r=>`D${r+1}`),...secIntGRows.map(r=>`G${r+1}`)];
+    const f=parts.length>0?parts.join('+'):null;
+    cset(0,R,label,'s',S.sub); mfill(R,0,5,S.sub); subRows.push(R);
+    cset(6,R,val,'n',S.subM,f||undefined); R++; R++;
+    secItemDRows=[]; secPagoDRows=[]; secIntGRows=[];
+  }
+
+  // ── CAPITAL ──
+  const cPBase=c.pagos.filter(p=>p.concepto==='capital'&&p.fecha&&p.monto>0);
+  const cPer=(c.intereses.activo&&c.intereses.tipoTasa&&!c.intereses.periodoResultados)?calcularPeriodos(c.monto,cPBase,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin):[];
+  const cILbl=c.intereses.activo?fmtTasaXL(c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.resultado?.tasa):'';
+  dRow('Capital',fmtFecha(c.fecha),c.foja,c.monto,cILbl,null,null);
+  xlPagos(c.pagos.filter(p=>p.concepto==='capital'));
+  if(c.intereses.activo&&c.intereses.periodoResultados?.length>0) xlAPI(c.intereses.periodoResultados,'capital',c.intereses.tipoTasa);
+  else if(cPer.length>1) xlPeriodos(cPer,'capital',fmtTasaXL(c.intereses.tipoTasa,c.intereses.tasaPctAnual),getTNAFija(c.intereses.tipoTasa,c.intereses.tasaPctAnual));
+  else xlSimple(c.intereses,intCap,'capital',cILbl,c.intereses.resultado?.dias||cPer[0]?.dias,c.monto);
+  xlPagos(c.pagos.filter(p=>p.concepto==='interes'));
+  xlSub('Saldo Capital + Intereses', saldoCap+saldoICap);
+
+  // ── HONORARIOS ──
+  if(d.honorarios.length>0){
+    d.honorarios.forEach((h,i)=>{
+      const usaUMA=h.usaUMA===true;
+      const mH=usaUMA?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const intH=usaUMA?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      const hBase=h.pagos.filter(p=>p.concepto==='honorarios'&&p.fecha&&p.monto>0);
+      const hPer=(h.intereses.activo&&h.intereses.tipoTasa&&!h.intereses.periodoResultados)
+        ?(usaUMA?calcPeriodosUMA(h.cantUMA||0,h.valorUMA||0,hBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)
+                :calcularPeriodos(mH,hBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)):[];
+      const uStr=usaUMA&&h.cantUMA>0?` (${h.cantUMA} UMA × $${(h.valorUMA||0).toLocaleString('es-AR')})`:'';
+      const hILbl=h.intereses.activo?fmtTasaXL(h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.resultado?.tasa):'';
+      dRow(`Honorarios${h.descripcion?' — '+h.descripcion:''}${uStr}`,fmtFecha(h.fecha),h.foja,mH,hILbl,null,null);
+      xlPagos(h.pagos.filter(p=>p.concepto==='honorarios'));
+      if(h.intereses.activo&&h.intereses.periodoResultados?.length>0) xlAPI(h.intereses.periodoResultados,'honorarios',h.intereses.tipoTasa);
+      else if(hPer.length>1) xlPeriodos(hPer,'honorarios',fmtTasaXL(h.intereses.tipoTasa,h.intereses.tasaPctAnual),getTNAFija(h.intereses.tipoTasa,h.intereses.tasaPctAnual));
+      else xlSimple(h.intereses,intH,'honorarios',hILbl,h.intereses.resultado?.dias||hPer[0]?.dias,mH);
+      xlPagos(h.pagos.filter(p=>p.concepto==='int_honorarios'));
+    });
+    const sHon=d.honorarios.reduce((s,h,i)=>{
+      const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      return s+Math.max(0,mH-sumPC(h.pagos,'honorarios'))+Math.max(0,iH-sumPC(h.pagos,'int_honorarios'));
+    },0);
+    xlSub('Saldo Honorarios + Intereses', sHon);
+  }
+
+  // ── GASTOS DOCUMENTADOS ──
+  if(d.gastosDoc.length>0){
+    d.gastosDoc.forEach((g,i)=>{
+      const intG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+      const gBase=g.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+      const gPer=(g.intereses.activo&&g.intereses.tipoTasa&&!g.intereses.periodoResultados)?calcularPeriodos(g.monto,gBase,g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.fechaInicio,g.intereses.fechaFin):[];
+      const gILbl=g.intereses.activo?fmtTasaXL(g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.resultado?.tasa):'';
+      dRow(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}`,fmtFecha(g.fecha),g.foja,g.monto,gILbl,null,null);
+      xlPagos(g.pagos.filter(p=>p.concepto==='gastos'));
+      if(g.intereses.activo&&g.intereses.periodoResultados?.length>0) xlAPI(g.intereses.periodoResultados,'gastos documentados',g.intereses.tipoTasa);
+      else if(gPer.length>1) xlPeriodos(gPer,'gastos documentados',fmtTasaXL(g.intereses.tipoTasa,g.intereses.tasaPctAnual),getTNAFija(g.intereses.tipoTasa,g.intereses.tasaPctAnual));
+      else xlSimple(g.intereses,intG,'gastos documentados',gILbl,g.intereses.resultado?.dias||gPer[0]?.dias,g.monto);
+      xlPagos(g.pagos.filter(p=>p.concepto==='int_gastos'));
+    });
+    const sGDoc=d.gastosDoc.reduce((s,g,i)=>{
+      const iG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+      return s+Math.max(0,g.monto-sumPC(g.pagos,'gastos'))+Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
+    },0);
+    xlSub('Saldo Gastos Documentados + Intereses', sGDoc);
+  }
+
+  // ── GASTOS NO DOCUMENTADOS ──
+  if(gnd>0){
+    const gndBase=d.gastosNoDoc.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+    const gndPer=(d.gastosNoDoc.intereses.activo&&d.gastosNoDoc.intereses.tipoTasa&&!d.gastosNoDoc.intereses.periodoResultados)?calcularPeriodos(gnd,gndBase,d.gastosNoDoc.intereses.tipoTasa,d.gastosNoDoc.intereses.tasaPctAnual,d.gastosNoDoc.intereses.fechaInicio,d.gastosNoDoc.intereses.fechaFin):[];
+    const gndILbl=d.gastosNoDoc.intereses.activo?fmtTasaXL(d.gastosNoDoc.intereses.tipoTasa,d.gastosNoDoc.intereses.tasaPctAnual,d.gastosNoDoc.intereses.resultado?.tasa):'';
+    dRow(`Gastos No documentados${d.gastosNoDoc.descripcion?' — '+d.gastosNoDoc.descripcion:''}`,fmtFecha(d.gastosNoDoc.fecha),d.gastosNoDoc.foja,gnd,gndILbl,null,null);
+    xlPagos(d.gastosNoDoc.pagos.filter(p=>p.concepto==='gastos'));
+    if(d.gastosNoDoc.intereses.activo&&d.gastosNoDoc.intereses.periodoResultados?.length>0) xlAPI(d.gastosNoDoc.intereses.periodoResultados,'gastos no documentados',d.gastosNoDoc.intereses.tipoTasa);
+    else if(gndPer.length>1) xlPeriodos(gndPer,'gastos no documentados',fmtTasaXL(d.gastosNoDoc.intereses.tipoTasa,d.gastosNoDoc.intereses.tasaPctAnual),getTNAFija(d.gastosNoDoc.intereses.tipoTasa,d.gastosNoDoc.intereses.tasaPctAnual));
+    else xlSimple(d.gastosNoDoc.intereses,intGnd,'gastos no documentados',gndILbl,d.gastosNoDoc.intereses.resultado?.dias||gndPer[0]?.dias,gnd);
+    xlPagos(d.gastosNoDoc.pagos.filter(p=>p.concepto==='int_gastos'));
+    xlSub('Saldo Gastos No documentados + Intereses', saldoGnd+Math.max(0,intGnd-sumPC(d.gastosNoDoc.pagos,'int_gastos')));
+  }
+
+  // ── PRE-RESUMEN ──
+  R++;
+  const sPreLbl={font:{bold:true,sz:9},fill:{patternType:'solid',fgColor:{rgb:'F0F7F8'}},border:bdr,alignment:{wrapText:true,vertical:'center'}};
+  const sPreM={font:{bold:true,sz:9},fill:{patternType:'solid',fgColor:{rgb:'F0F7F8'}},border:bdr,alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00'};
+  const sPrePag={font:{sz:9,color:{rgb:'8B2020'}},border:bdr,alignment:{wrapText:true,vertical:'center'}};
+  const sPrePagM={font:{sz:9,color:{rgb:'8B2020'}},border:bdr,alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00'};
+  const sPreTot={font:{bold:true,sz:10},fill:{patternType:'solid',fgColor:{rgb:'E8F5F7'}},border:{top:{style:'medium',color:{rgb:'4A97A3'}},bottom:{style:'medium',color:{rgb:'4A97A3'}},left:{style:'thin',color:{rgb:'B0C8CC'}},right:{style:'thin',color:{rgb:'B0C8CC'}}},alignment:{wrapText:true,vertical:'center'}};
+  const sPreTotM={font:{bold:true,sz:10},fill:{patternType:'solid',fgColor:{rgb:'E8F5F7'}},border:{top:{style:'medium',color:{rgb:'4A97A3'}},bottom:{style:'medium',color:{rgb:'4A97A3'}},left:{style:'thin',color:{rgb:'B0C8CC'}},right:{style:'thin',color:{rgb:'B0C8CC'}}},alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00'};
+  const R_dev=R, R_pag=R+1, R_tot=R+2;
+  const totPlanFml=subRows.length>0?subRows.map(r=>`G${r+1}`).join('+'):null;
+  const pagFml=pagoRefs.length>0?'-('+pagoRefs.map(r=>`D${r+1}`).join('+')+')':null;
+  const devFml=`G${R_pag+1}+G${R_tot+1}`;
+  cset(0,R_dev,'(+) Total devengado','s',sPreLbl); mfill(R_dev,0,5,sPreLbl); cset(6,R_dev,totalDevengado,'n',sPreM,devFml);
+  cset(0,R_pag,'(-) Pagos realizados','s',sPrePag); mfill(R_pag,0,5,sPrePag); cset(6,R_pag,pagosRealizados,'n',sPrePagM,pagFml||undefined);
+  cset(0,R_tot,'(=) Total de Planilla','s',sPreTot); mfill(R_tot,0,5,sPreTot); cset(6,R_tot,total,'n',sPreTotM,totPlanFml||undefined);
+  R=R_tot+1; R++;
+
+  // ── RESUMEN ──
+  cset(0,R,'RESUMEN DE SALDOS ADEUDADOS','s',{font:{bold:true,sz:11,color:{rgb:'1A5A62'}}});
+  mfill(R,0,6,{font:{bold:true,sz:11,color:{rgb:'1A5A62'}}}); R++;
+  cset(0,R,'Ítem','s',{...S.hdr,alignment:{horizontal:'left',vertical:'center'}});
+  cset(1,R,'Monto ($)','s',S.hdr); mfill(R,1,6,S.hdr); R++;
+  function resR(label,val){
+    if(resRowStart===null) resRowStart=R;
+    resRowEnd=R;
+    const sL={font:{sz:9},border:bdr};
+    const sM={font:{sz:9},border:bdr,numFmt:'"$"#,##0.00',alignment:{horizontal:'right'}};
+    cset(0,R,label,'s',sL); cset(1,R,val,'n',sM); mfill(R,1,6,sL); R++;
+  }
+  resR('Capital', saldoCap);
+  if(intCap>0) resR('Intereses de capital', saldoICap);
+  d.honorarios.forEach((h,i)=>{
+    const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+    const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+    const sH=Math.max(0,mH-sumPC(h.pagos,'honorarios'));
+    const sIH=Math.max(0,iH-sumPC(h.pagos,'int_honorarios'));
+    const usaUMA=h.usaUMA===true;
+    const umaRest=usaUMA&&h.valorUMA>0?sH/h.valorUMA:0;
+    const umaIntRest=usaUMA&&h.valorUMA>0?sIH/h.valorUMA:0;
+    const honLbl=`Honorarios${h.descripcion?' ('+h.descripcion+')':''}${usaUMA&&umaRest>0?' — '+fmtUMA(umaRest)+' UMA × $'+(h.valorUMA||0).toLocaleString('es-AR'):''}`;
+    const intLbl=`Intereses de honorarios${h.descripcion?' ('+h.descripcion+')':''}${usaUMA&&umaIntRest>0?' — '+fmtUMA(umaIntRest)+' UMA × $'+(h.valorUMA||0).toLocaleString('es-AR'):''}`;
+    if(sH>0) resR(honLbl,sH);
+    if(h.intereses.activo&&sIH>0) resR(intLbl,sIH);
+  });
+  d.gastosDoc.forEach((g,i)=>{
+    const iG=getInteresConPeriodos(g.intereses,g.monto,g.pagos,'gdoc_'+i);
+    const sG=Math.max(0,g.monto-sumPC(g.pagos,'gastos'));
+    const sIG=Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
+    if(sG>0) resR(`Gastos documentados${g.descripcion?' ('+g.descripcion+')':''}`,sG);
+    if(g.intereses.activo&&sIG>0) resR(`Intereses sobre gastos documentados${g.descripcion?' ('+g.descripcion+')':''}`,sIG);
+  });
+  if(gnd>0) resR(`Gastos No documentados${d.gastosNoDoc.descripcion?' ('+d.gastosNoDoc.descripcion+')':''}`,Math.max(0,gnd-sumPC(d.gastosNoDoc.pagos,'gastos')));
+  if(intGnd>0){ const sIG=Math.max(0,intGnd-sumPC(d.gastosNoDoc.pagos,'int_gastos')); if(sIG>0) resR('Intereses sobre gastos No documentados',sIG); }
+  const resTotFml=resRowStart!==null&&resRowEnd!==null?`SUM(B${resRowStart+1}:B${resRowEnd+1})`:null;
+  cset(0,R,`TOTAL AL ${fmtFecha(fechaCalc)}`,'s',S.totH); mfill(R,0,0,S.totH);
+  cset(1,R,total,'n',S.totM,resTotFml||undefined); mfill(R,1,6,S.totM); R++;
+
+  ws['!cols'] = [{wch:48},{wch:13},{wch:7},{wch:16},{wch:28},{wch:7},{wch:16}];
+  ws['!merges'] = merges;
+  ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:R,c:6}});
+  XLSX.utils.book_append_sheet(wb, ws, 'Planilla Judicial');
+  XLSX.writeFile(wb, `PlanillaJudicial_${(e.numero||'SN').replace(/\//g,'-')}.xlsx`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1484,19 +2433,72 @@ function exportarExcel(){
 async function exportarPDF(){
   if(!validarExpediente()) return;
   const pa=document.getElementById('printArea');
-  pa.innerHTML=`<div style="width:794px;padding:28px 30px;background:#fff">${buildPrintHTML()}</div>`;
+  pa.innerHTML=`<div style="width:640px;background:#fff" lang="es">${buildPrintHTML()}</div>`;
   pa.style.display='block';
-  const canvas=await html2canvas(pa.querySelector('div'),{scale:2,useCORS:true,backgroundColor:'#fff'});
+  const containerEl=pa.querySelector('div');
+  const cr=containerEl.getBoundingClientRect();
+  const theadEl=containerEl.querySelector('thead');
+  let theadTop_c=0, theadH_c=0;
+  if(theadEl){
+    const tr=theadEl.getBoundingClientRect();
+    theadTop_c=Math.round((tr.top-cr.top)*2);
+    theadH_c=Math.round(tr.height*2);
+  }
+  const mainTableEl=containerEl.querySelector('table');
+  let mainTableBot_c=Infinity;
+  if(mainTableEl){
+    const mt=mainTableEl.getBoundingClientRect();
+    mainTableBot_c=Math.round((mt.bottom-cr.top)*2);
+  }
+  // Collect row bottom positions (canvas scale=2 coords) for clean page cuts
+  const rowBots=[...new Set(
+    Array.from(containerEl.querySelectorAll('tr'))
+      .map(tr=>Math.round((tr.getBoundingClientRect().bottom-cr.top)*2))
+      .filter(b=>b>0)
+  )].sort((a,b)=>a-b);
+  const canvas=await html2canvas(containerEl,{scale:2,useCORS:true,backgroundColor:'#fff'});
   pa.style.display='none';
+  rowBots.push(canvas.height);
+  function snapCut(startY,maxY){
+    const c=rowBots.filter(b=>b>startY&&b<=maxY);
+    return c.length>0?c[c.length-1]:maxY;
+  }
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
-  const margin=10;
-  const imgW=pw-margin*2;
-  const imgH=(canvas.height*imgW)/canvas.width;
-  let pos=margin, remaining=imgH;
-  pdf.addImage(canvas.toDataURL('image/png'),'PNG',margin,pos,imgW,imgH);
-  while(remaining>ph-margin*2){remaining-=ph-margin*2;pdf.addPage();pdf.addImage(canvas.toDataURL('image/png'),'PNG',margin,margin-remaining,imgW,imgH);}
+  const mL=20, mR=10, mT=20, mB=40;
+  const imgW=pw-mL-mR;
+  const usableMM=ph-mT-mB;
+  const pxPerMM=canvas.width/imgW;
+  const usablePx=Math.floor(usableMM*pxPerMM);
+  function slice(y,h){
+    const sc=document.createElement('canvas');
+    sc.width=canvas.width; sc.height=h;
+    sc.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+    return sc.toDataURL('image/jpeg',0.82);
+  }
+  let srcY=0, page=0;
+  while(srcY<canvas.height){
+    if(page>0) pdf.addPage();
+    if(page===0){
+      const cutY=snapCut(0,usablePx);
+      pdf.addImage(slice(0,cutY),'JPEG',mL,mT,imgW,cutY/pxPerMM);
+      srcY=cutY;
+    } else if(srcY < mainTableBot_c) {
+      pdf.addImage(slice(theadTop_c,theadH_c),'JPEG',mL,mT,imgW,theadH_c/pxPerMM);
+      const maxBody=usablePx-theadH_c;
+      const cutY=snapCut(srcY,srcY+maxBody);
+      const bodyH=cutY-srcY;
+      pdf.addImage(slice(srcY,bodyH),'JPEG',mL,mT+theadH_c/pxPerMM,imgW,bodyH/pxPerMM);
+      srcY=cutY;
+    } else {
+      const cutY=snapCut(srcY,srcY+usablePx);
+      const bodyH=cutY-srcY;
+      pdf.addImage(slice(srcY,bodyH),'JPEG',mL,mT,imgW,bodyH/pxPerMM);
+      srcY=cutY;
+    }
+    page++;
+  }
   const d=recolectarDatos();
   pdf.save(`PlanillaJudicial_${(d.expediente.numero||'SN').replace(/\//g,'-')}.pdf`);
 }
@@ -1507,7 +2509,7 @@ async function exportarPDF(){
 async function exportarImagen(){
   if(!validarExpediente()) return;
   const pa=document.getElementById('printArea');
-  pa.innerHTML=`<div style="width:794px;padding:28px 30px;background:#fff">${buildPrintHTML()}</div>`;
+  pa.innerHTML=`<div style="width:640px;background:#fff" lang="es">${buildPrintHTML()}</div>`;
   pa.style.display='block';
   const canvas=await html2canvas(pa.querySelector('div'),{scale:2,useCORS:true,backgroundColor:'#fff'});
   pa.style.display='none';
