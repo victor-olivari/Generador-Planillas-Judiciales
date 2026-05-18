@@ -522,13 +522,43 @@ const WORKER_CODE = `export default {
     }
 
     function getField(html, name) {
-      const re = new RegExp('<input[^>]+name=["\\'']' + name + '["\\''][^>]*>', 'i');
+      const re = new RegExp(\`<input[^>]+name=["']\` + name + \`["'][^>]*>\`, 'i');
       const tag = html.match(re)?.[0] || '';
-      return tag.match(/value=["'']([^"'']*)/i)?.[1] || '';
+      return tag.match(/value=["']([^"']*)/i)?.[1] || '';
     }
 
     const url = new URL(request.url);
     const p = Object.fromEntries(url.searchParams);
+
+    if(p.accion === 'uma') {
+      try {
+        const csjnResp = await fetch('https://www.csjn.gov.ar/novedades/noticias', {
+          headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
+        });
+        const csjnHtml = await csjnResp.text();
+        const linkMatch = csjnHtml.match(/href="(\\/novedades\\/detalle\\/\\d+)"[^>]*>(?:[^<]|\\n){0,200}UMA/i);
+        if(linkMatch) {
+          const detailResp = await fetch('https://www.csjn.gov.ar' + linkMatch[1], {
+            headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
+          });
+          const dHtml = await detailResp.text();
+          const valMatch = dHtml.match(/(?:suma de \\$|UMA[^$]*\\$)\\s*([\\d.]+)/i) ||
+                           dHtml.match(/\\$\\s*([\\d.]+)(?:[^%\\d])/);
+          if(valMatch) {
+            const valor = parseInt(valMatch[1].replace(/\\./g,''));
+            if(valor > 10000 && valor < 100000000) {
+              return Response.json({valor, ok:true, fuente:'csjn'}, {
+                headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=3600'}
+              });
+            }
+          }
+        }
+      } catch(e) { /* fallthrough to default */ }
+      return Response.json({valor: 92482, ok:true, fuente:'default'}, {
+        headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}
+      });
+    }
+
     const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
 
     let phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
@@ -613,40 +643,6 @@ const WORKER_CODE = `export default {
       dias: diasMatch ? parseInt(diasMatch[1]) : null,
     }, { headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' }});
   }
-  // ── UMA: obtener valor vigente de la UMA (CSJN) ──
-  if(p.accion === 'uma') {
-    try {
-      // Intentar buscar valor de UMA en resoluciones del CSJN
-      const csjnResp = await fetch('https://www.csjn.gov.ar/novedades/noticias', {
-        headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
-      });
-      const csjnHtml = await csjnResp.text();
-      // Buscar link a noticia con "UMA" en el texto
-      const linkMatch = csjnHtml.match(/href="(\/novedades\/detalle\/\d+)"[^>]*>(?:[^<]|\n){0,200}UMA/i);
-      if(linkMatch) {
-        const detailResp = await fetch('https://www.csjn.gov.ar' + linkMatch[1], {
-          headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}
-        });
-        const dHtml = await detailResp.text();
-        // Buscar "suma de $XX.XXX" o "$XX.XXX" cerca de UMA
-        const valMatch = dHtml.match(/(?:suma de \$|UMA[^$]*\$)\s*([\d.]+)/i) ||
-                         dHtml.match(/\$\s*([\d.]+)(?:[^%\d])/);
-        if(valMatch) {
-          const valor = parseInt(valMatch[1].replace(/\./g,''));
-          if(valor > 10000 && valor < 100000000) {
-            return Response.json({valor, ok:true, fuente:'csjn'}, {
-              headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=3600'}
-            });
-          }
-        }
-      }
-    } catch(e) { /* fallthrough to default */ }
-    // Valor por defecto: $92.482 — CSJN Res.SGA N° 538/2026 (desde 01/02/2026)
-    return Response.json({valor: 92482, ok:true, fuente:'default'}, {
-      headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}
-    });
-  }
-
 };`;
 
 function getWorkerUrl(){
@@ -1426,7 +1422,7 @@ function getUMAVigente(){
 }
 
 async function fetchUMAFromWorker(){
-  const wurl = localStorage.getItem('workerUrl');
+  const wurl = localStorage.getItem('pjWorkerUrl');
   if(!wurl) return UMA_DEFAULT_VALOR;
   try {
     const r = await fetch(wurl, {
