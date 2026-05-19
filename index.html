@@ -201,10 +201,10 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
       </div>
     </div>
 
-    <!-- CAPITAL INICIAL -->
+    <!-- CAPITAL -->
     <div class="rubro-card">
       <div class="rubro-header" onclick="toggleSection('secCapital')">
-        <span><i class="bi bi-cash-coin me-2"></i>Capital Inicial</span>
+        <span><i class="bi bi-cash-coin me-2"></i>Capital</span>
         <div class="d-flex align-items-center gap-2">
           <span class="subtotal-badge" id="badge-capital">$0,00</span>
           <i class="bi bi-chevron-down collapse-icon" id="ico-secCapital"></i>
@@ -555,13 +555,64 @@ function showToast(msg, tipo='success'){
 // CONFIGURACIÓN CLOUDFLARE WORKER
 // ═══════════════════════════════════════════════════════════════
 const WORKER_CODE = `export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const cors = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE',
+      'Access-Control-Allow-Headers': '*',
+    };
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST',
-        'Access-Control-Allow-Headers': '*',
-      }});
+      return new Response(null, { headers: cors });
+    }
+
+    const url = new URL(request.url);
+    const p = Object.fromEntries(url.searchParams);
+
+    // ── HISTORIAL COMPARTIDO (Cloudflare KV) ──
+    if(p.accion === 'hist_save') {
+      if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
+      try {
+        const body = await request.json();
+        const key = \`planilla_\${Date.now()}_\${Math.random().toString(36).slice(2,6)}\`;
+        const meta = {
+          caratula: body.expediente?.caratula||'',
+          numero: body.expediente?.numero||'',
+          fuero: body.expediente?.fuero||'',
+          juzgado: body.expediente?.juzgado||'',
+          operador: body.expediente?.operador||'',
+          fechaGuardado: new Date().toISOString(),
+          appId: body.id||key,
+        };
+        await env.KV_HISTORY.put(key, JSON.stringify(body), {metadata: meta, expirationTtl: 60*60*24*365*5});
+        return Response.json({ok:true, id:key},{headers:cors});
+      } catch(e){ return Response.json({error:e.message},{headers:cors}); }
+    }
+
+    if(p.accion === 'hist_list') {
+      if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
+      try {
+        const list = await env.KV_HISTORY.list();
+        const items = list.keys.map(k=>({id:k.name,...(k.metadata||{})}))
+          .sort((a,b)=>(b.fechaGuardado||'').localeCompare(a.fechaGuardado||''));
+        return Response.json({items},{headers:cors});
+      } catch(e){ return Response.json({error:e.message},{headers:cors}); }
+    }
+
+    if(p.accion === 'hist_get') {
+      if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
+      try {
+        const data = await env.KV_HISTORY.get(p.id, {type:'json'});
+        if(!data) return Response.json({error:'No encontrado'},{headers:cors,status:404});
+        return Response.json({data},{headers:cors});
+      } catch(e){ return Response.json({error:e.message},{headers:cors}); }
+    }
+
+    if(p.accion === 'hist_del') {
+      if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
+      try {
+        await env.KV_HISTORY.delete(p.id);
+        return Response.json({ok:true},{headers:cors});
+      } catch(e){ return Response.json({error:e.message},{headers:cors}); }
     }
 
     function getField(html, name) {
@@ -569,9 +620,6 @@ const WORKER_CODE = `export default {
       const tag = html.match(re)?.[0] || '';
       return tag.match(/value=["']([^"']*)/i)?.[1] || '';
     }
-
-    const url = new URL(request.url);
-    const p = Object.fromEntries(url.searchParams);
 
     if(p.accion === 'uma') {
       try {
@@ -792,7 +840,7 @@ function calcularPeriodos(monto, pagosCapital, tipoTasa, tasaPct, fechaInicio, f
 // ═══════════════════════════════════════════════════════════════
 function agregarCapital(){
   STATE.capitals.push({
-    id:uid(), monto:0, fecha:'', foja:'', obs:'',
+    id:uid(), monto:0, descripcion:'', fecha:'', foja:'',
     intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},
     pagos:[]
   });
@@ -812,11 +860,16 @@ function renderCapital(){
         <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.75rem" onclick="STATE.capitals.splice(${i},1);renderCapital();recalcular()"><i class="bi bi-trash"></i></button>
       </div>
       <div class="row g-2 mt-1">
-        <div class="col-md-3">
-          <label class="form-label-sm req-star">Monto capital ($)</label>
+        <div class="col-md-2">
+          <label class="form-label-sm req-star">Monto ($)</label>
           <input type="text" class="form-control form-control-sm" value="${montoDisplay(c.monto)||''}" placeholder="Ej: 1.234,56"
             onblur="(function(el){ const v=parseMonto(el.value); if(v===null){el.classList.add('is-invalid');el.title='Formato inválido. Use: 1.234,56';return;} el.classList.remove('is-invalid');el.title='';el.value=montoDisplay(v); STATE.capitals[${i}].monto=v; recalcular(); })(this)"
             onfocus="onMontoFocus(this)">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-sm">Descripción <span class="fs-label">opc.</span></label>
+          <input type="text" class="form-control form-control-sm" value="${c.descripcion||''}" placeholder="Ej: Alquiler enero 2024"
+            onchange="STATE.capitals[${i}].descripcion=this.value;renderResumen()">
         </div>
         <div class="col-md-2">
           <label class="form-label-sm req-star">Fecha sentencia</label>
@@ -828,11 +881,6 @@ function renderCapital(){
           <input type="text" class="form-control form-control-sm foja-input" value="${c.foja||''}" placeholder="Ej: 5/A"
             onchange="STATE.capitals[${i}].foja=this.value">
         </div>
-        <div class="col-md-5">
-          <label class="form-label-sm">Observaciones <span class="fs-label">(no se exporta)</span></label>
-          <input type="text" class="form-control form-control-sm" value="${c.obs||''}" placeholder="Opcional"
-            onchange="STATE.capitals[${i}].obs=this.value">
-        </div>
       </div>
       <!-- INTERESES -->
       <div class="mt-2">
@@ -840,7 +888,7 @@ function renderCapital(){
           <input class="form-check-input" type="checkbox" id="capInteresSwitch_${i}" ${c.intereses.activo?'checked':''}
             onchange="STATE.capitals[${i}].intereses.activo=this.checked;renderCapital();recalcular()">
           <label class="form-check-label small fw-semibold" for="capInteresSwitch_${i}">
-            <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Calcular intereses sobre Capital #${i+1}
+            <i class="bi bi-percent me-1" style="color:var(--ol-teal)"></i>Calcular intereses sobre Capital #${i+1}${c.descripcion?' — '+c.descripcion:''}
           </label>
         </div>
         ${c.intereses.activo ? renderInteresesBox('capital_'+i,c.intereses,periodos) : ''}
@@ -1825,9 +1873,9 @@ function renderResumen(){
     const saldoIC=Math.max(0,intC-sumPagoCon(c.pagos,'interes'));
     const hayPagC=sumPagoCon(c.pagos,'capital')>0;
     const hayPagIC=sumPagoCon(c.pagos,'interes')>0;
-    const capLabel = STATE.capitals.length>1 ? `Capital #${i+1}` : 'Capital';
+    const capLabel = STATE.capitals.length>1 ? `Capital #${i+1}${c.descripcion?' — '+c.descripcion:''}` : `Capital${c.descripcion?' — '+c.descripcion:''}`;
     rows+=tr(capLabel, fmt(c.monto));
-    if(c.intereses.activo) rows+=tr('Intereses de capital', fmt(intC), '', true);
+    if(c.intereses.activo) rows+=tr(`Intereses de capital${c.descripcion?' ('+c.descripcion+')':''}`, fmt(intC), '', true);
     if(hayPagC) rows+=trPago('Pago s/ capital', fmt(sumPagoCon(c.pagos,'capital')));
     if(hayPagIC) rows+=trPago('Pago s/ intereses', fmt(sumPagoCon(c.pagos,'interes')));
     if(hayPagC||hayPagIC) rows+=tr('Saldo capital', fmt(saldoC), '', true);
@@ -1983,22 +2031,92 @@ function cargarDatos(d){
   showTab('nueva');
 }
 
-function guardarHistorial(){
+async function guardarHistorial(){
   if(!validarExpediente()) return;
   const d = recolectarDatos();
+  // Guardar local siempre
   let hist = getHist();
   const idx = hist.findIndex(h=>h.id===d.id);
   if(idx>=0) hist[idx]=d; else hist.unshift(d);
   setHist(hist);
   editId=d.id;
-  showToast('Planilla guardada en historial.');
+  // Guardar en KV remoto si hay worker
+  const wurl = getWorkerUrl();
+  if(wurl){
+    try{
+      showToast('Guardando en historial compartido…','info');
+      const res = await fetch(`${wurl}?accion=hist_save`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(d)
+      });
+      const r = await res.json();
+      if(r.ok){
+        // Guardar el kvId local para poder eliminarlo después
+        d._kvId = r.id;
+        const idx2=hist.findIndex(h=>h.id===d.id);
+        if(idx2>=0){hist[idx2]._kvId=r.id;setHist(hist);}
+        showToast('Planilla guardada en historial compartido ✓','success');
+      } else {
+        showToast('Guardado local OK. Remoto: '+(r.error||'error'),'warning');
+      }
+    }catch(e){ showToast('Guardado local OK. Sin conexión al historial remoto.','warning'); }
+  } else {
+    showToast('Planilla guardada en historial local.');
+  }
 }
 
 function renderHistorial(){
-  const hist = getHist();
   const lista = document.getElementById('historialLista');
+  const wurl = getWorkerUrl();
+  if(wurl){
+    lista.innerHTML='<div class="text-muted small p-2"><span class="spin" style="border-color:rgba(0,0,0,.12);border-top-color:#2B7A86;display:inline-block;width:14px;height:14px;border-width:2px;border-style:solid;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle"></span> Cargando historial compartido…</div>';
+    fetch(`${wurl}?accion=hist_list`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.error){ _renderHistorialLocal(lista); return; }
+        _renderHistorialRemoto(lista, data.items||[]);
+      })
+      .catch(()=>_renderHistorialLocal(lista));
+  } else {
+    _renderHistorialLocal(lista);
+  }
+}
+
+function _renderHistorialRemoto(lista, items){
+  if(items.length===0){
+    lista.innerHTML='<div class="text-center text-muted small py-3"><i class="bi bi-cloud-slash me-1"></i>Historial compartido vacío.</div>';
+    return;
+  }
+  const badge='<span class="badge bg-info text-dark ms-1" style="font-size:.6rem;vertical-align:middle"><i class="bi bi-cloud-check"></i> Compartido</span>';
+  lista.innerHTML = `<div class="mb-2 small text-muted"><i class="bi bi-cloud-check me-1 text-info"></i>Historial compartido — visible para todos los usuarios ${badge}</div>`
+    + items.map(h=>{
+      const ts = h.fechaGuardado ? new Date(h.fechaGuardado) : null;
+      const fecha = ts ? ts.toLocaleDateString('es-AR') : '—';
+      const hora = ts ? ts.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="hist-card d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-bold" style="color:var(--ol-teal)">${h.caratula||'(sin carátula)'}</div>
+          <div class="text-muted small">Exp: ${h.numero||'—'} | ${h.fuero||'—'} | ${h.juzgado||'—'}</div>
+          <div class="text-muted small">Guardado: ${fecha} ${hora} | Operador: <strong>${h.operador||'—'}</strong></div>
+        </div>
+        <div class="d-flex flex-column gap-1">
+          <button class="btn btn-sm text-white" style="background:var(--ol-teal);font-size:.78rem"
+            onclick="cargarPlanillaRemota('${h.id}')">
+            <i class="bi bi-pencil me-1"></i>Cargar</button>
+          <button class="btn btn-sm btn-outline-danger" style="font-size:.78rem"
+            onclick="eliminarHistorialRemoto('${h.id}',this)">
+            <i class="bi bi-trash me-1"></i>Eliminar</button>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function _renderHistorialLocal(lista){
+  const hist = getHist();
   if(hist.length===0){lista.innerHTML='<p class="text-muted small">Sin planillas guardadas.</p>';return;}
-  lista.innerHTML = hist.map((h,i)=>{
+  lista.innerHTML = '<div class="mb-2 small text-muted"><i class="bi bi-hdd me-1"></i>Historial local (solo este dispositivo)</div>'
+    + hist.map((h,i)=>{
     const ts = new Date(h.ts);
     const fecha = ts.toLocaleDateString('es-AR');
     const hora = ts.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -2017,6 +2135,29 @@ function renderHistorial(){
       </div>
     </div>`;
   }).join('');
+}
+
+async function cargarPlanillaRemota(kvId){
+  const wurl = getWorkerUrl();
+  if(!wurl) return;
+  try{
+    showToast('Cargando planilla…','info');
+    const res = await fetch(`${wurl}?accion=hist_get&id=${encodeURIComponent(kvId)}`);
+    const r = await res.json();
+    if(r.data){ cargarDatos(r.data); }
+    else { showToast('No se pudo cargar la planilla.','danger'); }
+  }catch(e){ showToast('Error al cargar: '+e.message,'danger'); }
+}
+
+async function eliminarHistorialRemoto(kvId, btn){
+  if(!confirm('¿Eliminar esta planilla del historial compartido?')) return;
+  const wurl = getWorkerUrl();
+  if(!wurl) return;
+  btn.disabled=true;
+  try{
+    await fetch(`${wurl}?accion=hist_del&id=${encodeURIComponent(kvId)}`);
+    renderHistorial();
+  }catch(e){ btn.disabled=false; showToast('Error al eliminar.','danger'); }
 }
 
 function eliminarHistorial(i){
@@ -2193,7 +2334,8 @@ function buildExportBody(datos){
     const capMulti = capPeriodos.length > 1;
     const capHasPR = c.intereses.activo && c.intereses.periodoResultados?.length > 0;
     const capInteresLabel = c.intereses.activo && c.intereses.tipoTasa ? ('Intereses según ' + (TASA_ABREV[c.intereses.tipoTasa]||c.intereses.tipoTasa)) : '';
-    const capLabel = capitals.length>1 ? `Capital #${i+1}` : 'Capital';
+    const capDesc = c.descripcion ? ` &#8212; ${c.descripcion}` : '';
+    const capLabel = capitals.length>1 ? `Capital #${i+1}${capDesc}` : `Capital${capDesc}`;
     html += buildItemRow(capLabel, capInteresLabel, c.monto, c.intereses.fechaInicio||c.fecha, c.foja, null, null, null);
     html += pagoRows(c.pagos.filter(p=>p.concepto==='capital'));
     if(capHasPR){
@@ -2343,9 +2485,9 @@ function buildExportBody(datos){
       </tr></thead>
       <tbody>
         ${capArr.map(({c,intC,sC:sCC,sIC},i)=>{
-          const capLbl = capitals.length>1 ? `Capital #${i+1}` : 'Capital';
-          return `<tr><td style="${sC}">${capLbl}</td><td style="${sC}text-align:right">${fmt(sCC)}</td></tr>`
-            +(intC>0?`<tr><td style="${sC}">Intereses de capital${capitals.length>1?' #'+(i+1):''}</td><td style="${sC}text-align:right">${fmt(sIC)}</td></tr>`:'');
+          const capLblR = (capitals.length>1 ? `Capital #${i+1}` : 'Capital') + (c.descripcion ? ` (${c.descripcion})` : '');
+          return `<tr><td style="${sC}">${capLblR}</td><td style="${sC}text-align:right">${fmt(sCC)}</td></tr>`
+            +(intC>0?`<tr><td style="${sC}">Intereses de capital${c.descripcion?' ('+c.descripcion+')':capitals.length>1?' #'+(i+1):''}</td><td style="${sC}text-align:right">${fmt(sIC)}</td></tr>`:'');
         }).join('')}
         ${datos.honorarios.length>0?datos.honorarios.map((h,i)=>{
           const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
@@ -2563,7 +2705,7 @@ function exportarExcel(){
     const cPBase=c.pagos.filter(p=>p.concepto==='capital'&&p.fecha&&p.monto>0);
     const cPer=(c.intereses.activo&&c.intereses.tipoTasa&&!c.intereses.periodoResultados)?calcularPeriodos(c.monto,cPBase,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin):[];
     const cILbl=c.intereses.activo?fmtTasaXL(c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.resultado?.tasa):'';
-    const capLbl = capitals.length>1 ? `Capital #${i+1}` : 'Capital';
+    const capLbl = (capitals.length>1 ? `Capital #${i+1}` : 'Capital') + (c.descripcion ? ` — ${c.descripcion}` : '');
     dRow(capLbl,fmtFecha(c.fecha),c.foja,c.monto,cILbl,null,null);
     xlPagos(c.pagos.filter(p=>p.concepto==='capital'));
     if(c.intereses.activo&&c.intereses.periodoResultados?.length>0) xlAPI(c.intereses.periodoResultados,'capital',c.intereses.tipoTasa);
@@ -2669,9 +2811,9 @@ function exportarExcel(){
     cset(0,R,label,'s',sL); cset(1,R,val,'n',sM); mfill(R,1,6,sL); R++;
   }
   capArr.forEach(({c,intC,sC,sIC},i)=>{
-    const capLbl = capitals.length>1 ? `Capital #${i+1}` : 'Capital';
-    resR(capLbl, sC);
-    if(intC>0) resR(`Intereses de capital${capitals.length>1?' #'+(i+1):''}`, sIC);
+    const capLblXL = (capitals.length>1 ? `Capital #${i+1}` : 'Capital') + (c.descripcion ? ` — ${c.descripcion}` : '');
+    resR(capLblXL, sC);
+    if(intC>0) resR(`Intereses de capital${c.descripcion?' ('+c.descripcion+')':capitals.length>1?' #'+(i+1):''}`, sIC);
   });
   d.honorarios.forEach((h,i)=>{
     const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
