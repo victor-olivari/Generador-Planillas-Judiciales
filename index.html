@@ -134,7 +134,7 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 
   <!-- TABS -->
   <ul class="nav main-tabs mb-0" id="mainTabs">
-    <li class="nav-item"><a class="nav-link active" href="#" onclick="showTab('nueva');return false;"><i class="bi bi-plus-circle me-1"></i>Nueva Planilla</a></li>
+    <li class="nav-item"><a class="nav-link active" href="#" onclick="nuevaPlanilla();return false;"><i class="bi bi-plus-circle me-1"></i>Nueva Planilla</a></li>
     <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('historial');return false;"><i class="bi bi-clock-history me-1"></i>Historial</a></li>
   </ul>
 
@@ -1952,6 +1952,18 @@ function renderResumen(){
 // ═══════════════════════════════════════════════════════════════
 // VALIDACIÓN DE CAMPOS OBLIGATORIOS
 // ═══════════════════════════════════════════════════════════════
+function validarGuardado(){
+  const caratula=(document.getElementById('expCaratula')?.value||'').trim();
+  const numero=(document.getElementById('expNumero')?.value||'').trim();
+  if(!caratula||!numero){
+    showToast('Complete al menos Carátula y N° Expediente para guardar.','error');
+    document.getElementById('secExpte').style.display='';
+    document.getElementById('expCaratula').scrollIntoView({behavior:'smooth',block:'center'});
+    return false;
+  }
+  return true;
+}
+
 function validarExpediente(){
   const campos = [
     {id:'expCirc',nombre:'Circunscripción'},
@@ -2034,7 +2046,7 @@ function cargarDatos(d){
 async function guardarHistorial(){
   const _ef=document.getElementById('expFecha');
   if(_ef&&!_ef.value) _ef.value=new Date().toISOString().split('T')[0];
-  if(!validarExpediente()) return;
+  if(!validarGuardado()) return false;
   const d = recolectarDatos();
   // Guardar local siempre
   let hist = getHist();
@@ -2066,6 +2078,31 @@ async function guardarHistorial(){
   } else {
     showToast('Planilla guardada en historial local.');
   }
+  return true;
+}
+
+function hasPendingData(){
+  if(STATE.capitals.length>0||STATE.honorarios.length>0||STATE.gastosDoc.length>0) return true;
+  const gnd=STATE.gastosNoDoc; if((gnd.monto||0)>0||(gnd.cantUMA||0)>0) return true;
+  const caratula=(document.getElementById('expCaratula')?.value||'').trim();
+  const numero=(document.getElementById('expNumero')?.value||'').trim();
+  return !!(caratula||numero);
+}
+
+async function nuevaPlanilla(){
+  if(!hasPendingData()){ showTab('nueva'); return; }
+  const saveFirst=confirm('¿Guardar la planilla en el historial antes de crear una nueva?');
+  if(saveFirst){
+    const saved=await guardarHistorial();
+    if(!saved) return; // Validación falló — usuario debe completar datos
+  }
+  editId=null;
+  STATE={capitals:[],honorarios:[],gastosDoc:[],gastosNoDoc:{usaUMA:null,cantUMA:0,valorUMA:0,valorUMAFecha:'',monto:0,descripcion:'',fecha:'',foja:'',obs:'',intereses:{activo:false,tipoTasa:'',tasaPctAnual:'',fechaInicio:'',fechaFin:'',resultado:null},pagos:[]}};
+  ['expCirc','expFuero','expJuzgado','expCaratula','expNumero','expOperador','expObs','expFueroOtro'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('expFecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('fueroOtroDiv').style.display='none';
+  renderTodo();
+  showTab('nueva');
 }
 
 function renderHistorial(){
