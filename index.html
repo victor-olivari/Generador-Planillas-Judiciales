@@ -673,7 +673,7 @@ const WORKER_CODE = `export default {
     }
 
     const formData = new URLSearchParams({
-      importe: (() => { const raw = p.importe||'1000'; const n = parseFloat(raw); return isNaN(n)?'1000':String(n); })(),
+      importe: (() => { const n = parseFloat(p.importe||'1000'); return isNaN(n)?'1000':n.toFixed(2).replace('.',','); })(),
       id_tipo_tasa: p.id_tipo_tasa || '1',
       desde: p.desde || '01-01-2024',
       hasta: p.hasta || '31-12-2024',
@@ -2294,6 +2294,8 @@ function buildExportBody(datos){
   const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:10pt;border:1px solid #d0e8eb;';
   const subtotalStyle = 'background:#E8F5F7;font-weight:600;';
   const cellB = 'padding:2px 5px;border:1px solid #d0e8eb;';
+  const pagoStyle = 'color:#C94B3D;font-size:10pt;';
+  const cellSm = 'padding:2px 4px;border:1px solid #eee;font-size:10pt;';
 
   // Filas de pagos (en rojo, orden cronológico)
   function pagoRows(pagos){
@@ -2365,51 +2367,46 @@ function buildExportBody(datos){
       <th style="${thStyle}">D&#237;as</th><th style="${thStyle}">Inter&#233;s</th>
     </tr></thead><tbody>`;
 
-  const intRow = (label,dates,tasa,dias,total) => `<tr style="background:#f9fdfd">
-    <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; ${label}</td>
-    <td style="${cellB}text-align:center;font-size:.85em;line-height:1.2">${dates}</td>
-    <td style="${cellB}"></td>
-    <td style="${cellB}"></td>
-    <td style="${cellB}text-align:center;line-height:1.3">${tasa}</td>
-    <td style="${cellB}text-align:center">${dias||''}</td>
-    <td style="${cellB}text-align:right"><strong>${fmt(total)}</strong></td>
-  </tr>`;
-
-  // ── CAPITAL (ÚNICO RENGLÓN) ──
-  const firstCap = capArr.length>0 ? capArr[0].c : null;
-  const capMainLabel = capitals.length===1&&firstCap.descripcion ? `Capital &#8212; ${firstCap.descripcion}` : 'Capital';
-  const capMainFecha = firstCap ? (firstCap.intereses.fechaInicio||firstCap.fecha) : '';
-  const capMainFoja = capitals.length===1 ? (firstCap.foja||'') : '';
-  html += buildItemRow(capMainLabel, '', totalCapMonto, capMainFecha, capMainFoja, null, null, null);
-  if(totalCapInt>0){
-    let cDates='', cTasa='', cDias='';
-    if(capitals.length===1 && firstCap.intereses.activo){
-      cDates=`${fmtFecha(firstCap.intereses.fechaInicio)}<br>&rarr;${fmtFecha(firstCap.intereses.fechaFin)}`;
-      cTasa=fmtTasaExport(firstCap.intereses.tipoTasa,firstCap.intereses.tasaPctAnual,firstCap.intereses.resultado?.tasa,true);
-      cDias=firstCap.intereses.resultado?.dias||'';
-    }
-    html += intRow('Intereses de Capital',cDates,cTasa,cDias,totalCapInt);
-  }
+  // ── CAPITAL (DETALLE COMPLETO POR ÍTEM) ──
+  capArr.forEach(({c,intC,sC,sIC},i)=>{
+    const capPagosBase = c.pagos.filter(p=>p.concepto==='capital'&&p.fecha&&p.monto>0);
+    const capPeriodos = (c.intereses.activo&&c.intereses.tipoTasa&&!c.intereses.periodoResultados)
+      ? calcularPeriodos(c.monto,capPagosBase,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin) : [];
+    const capHasPR = c.intereses.activo && c.intereses.periodoResultados?.length>0;
+    const capInteresLabel = c.intereses.activo&&c.intereses.tipoTasa ? 'Intereses según '+(TASA_ABREV[c.intereses.tipoTasa]||c.intereses.tipoTasa) : '';
+    const capDesc = c.descripcion ? ` &#8212; ${c.descripcion}` : '';
+    const capLabel = capitals.length>1 ? `Capital #${i+1}${capDesc}` : `Capital${capDesc}`;
+    html += buildItemRow(capLabel, capInteresLabel, c.monto, c.intereses.fechaInicio||c.fecha, c.foja, null, null, null);
+    html += pagoRows(c.pagos.filter(p=>p.concepto==='capital'));
+    if(capHasPR) html += periodoAPIRows(c.intereses.periodoResultados,'capital',c.intereses.tipoTasa,true);
+    else if(capPeriodos.length>1) html += periodoIntRows(capPeriodos,'capital',fmtTasaExport(c.intereses.tipoTasa,c.intereses.tasaPctAnual,null,true));
+    else html += interesSimpleRow(c.intereses,intC,'capital',fmtTasaExport(c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.resultado?.tasa,true),c.intereses.resultado?.dias||capPeriodos[0]?.dias);
+    html += pagoRows(c.pagos.filter(p=>p.concepto==='interes'));
+  });
   html += `<tr style="${subtotalStyle}">
     <td colspan="3" style="${cellB}"><strong>Saldo Capital + Intereses</strong></td>
     <td colspan="3"></td>
     <td style="${cellB}text-align:right"><strong>${fmt(totalCapSaldo+totalCapIntSaldo)}</strong></td>
   </tr>`;
 
-  // ── HONORARIOS (UN RENGLÓN POR PROFESIONAL) ──
+  // ── HONORARIOS (DETALLE COMPLETO POR PROFESIONAL) ──
   if(datos.honorarios.length>0){
     datos.honorarios.forEach((h,i)=>{
-      const usaUMA = h.usaUMA === true;
-      const mH = usaUMA ? (h.cantUMA||0)*(h.valorUMA||0) : (h.monto||0);
-      const intH = usaUMA ? getInteresHonorariosUMA(h,i) : getInteresConPeriodos(h.intereses, mH, h.pagos, 'honor_'+i);
-      const umaLabel = usaUMA&&h.cantUMA>0 ? ` (${fmtUMA(h.cantUMA)} UMA &times; ${fmt(h.valorUMA)})` : '';
-      html += buildItemRow(`Honorarios${h.descripcion?' &#8212; '+h.descripcion:''}${umaLabel}`, '', mH, h.fecha, h.foja, null, null, null);
-      if(h.intereses.activo && intH>0){
-        const hDates=`${fmtFecha(h.intereses.fechaInicio)}<br>&rarr;${fmtFecha(h.intereses.fechaFin)}`;
-        const hTasa=fmtTasaExport(h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.resultado?.tasa);
-        const hDias=h.intereses.resultado?.dias||'';
-        html += intRow(`Intereses de honorarios${h.descripcion?' &#8212; '+h.descripcion:''}`,hDates,hTasa,hDias,intH);
-      }
+      const usaUMA = h.usaUMA===true;
+      const mH = usaUMA?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
+      const intH = usaUMA?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      const honPagosBase = h.pagos.filter(p=>p.concepto==='honorarios'&&p.fecha&&p.monto>0);
+      const honPer = (h.intereses.activo&&h.intereses.tipoTasa&&!h.intereses.periodoResultados)
+        ?(usaUMA?calcPeriodosUMA(h.cantUMA||0,h.valorUMA||0,honPagosBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)
+               :calcularPeriodos(mH,honPagosBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)):[];
+      const honHasPR = h.intereses.activo&&h.intereses.periodoResultados?.length>0;
+      const umaLabel = usaUMA&&h.cantUMA>0?` (${fmtUMA(h.cantUMA)} UMA &times; ${fmt(h.valorUMA)})`:'';
+      html += buildItemRow(`Honorarios${h.descripcion?' &#8212; '+h.descripcion:''}${umaLabel}`,'',mH,h.fecha,h.foja,null,null,null);
+      html += pagoRows(h.pagos.filter(p=>p.concepto==='honorarios'));
+      if(honHasPR) html += periodoAPIRows(h.intereses.periodoResultados,'honorarios',h.intereses.tipoTasa);
+      else if(honPer.length>1) html += periodoIntRows(honPer,'honorarios',fmtTasaExport(h.intereses.tipoTasa,h.intereses.tasaPctAnual));
+      else html += interesSimpleRow(h.intereses,intH,'honorarios',fmtTasaExport(h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.resultado?.tasa),h.intereses.resultado?.dias||honPer[0]?.dias);
+      html += pagoRows(h.pagos.filter(p=>p.concepto==='int_honorarios'));
     });
     html += `<tr style="${subtotalStyle}">
       <td colspan="3" style="${cellB}"><strong>Saldo Honorarios + Intereses</strong></td>
@@ -2418,19 +2415,24 @@ function buildExportBody(datos){
     </tr>`;
   }
 
-  // ── GASTOS DOCUMENTADOS (ÚNICO RENGLÓN) ──
+  // ── GASTOS DOCUMENTADOS (DETALLE COMPLETO POR ÍTEM) ──
   if(datos.gastosDoc.length>0){
-    html += buildItemRow('Gastos documentados', '', totalGDoc, '', '', null, null, null);
-    if(totalIntGDoc>0){
-      let gDates='', gTasa='', gDias='';
-      if(datos.gastosDoc.length===1 && datos.gastosDoc[0].intereses.activo){
-        const g0=datos.gastosDoc[0];
-        gDates=`${fmtFecha(g0.intereses.fechaInicio)}<br>&rarr;${fmtFecha(g0.intereses.fechaFin)}`;
-        gTasa=fmtTasaExport(g0.intereses.tipoTasa,g0.intereses.tasaPctAnual,g0.intereses.resultado?.tasa,true);
-        gDias=g0.intereses.resultado?.dias||'';
-      }
-      html += intRow('Intereses s/ gastos documentados',gDates,gTasa,gDias,totalIntGDoc);
-    }
+    datos.gastosDoc.forEach((g,i)=>{
+      const mb = g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);
+      const intG = getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);
+      const gDocPagosBase = g.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+      const gDocPer = (g.intereses.activo&&g.intereses.tipoTasa&&!g.intereses.periodoResultados)
+        ?calcularPeriodos(mb,gDocPagosBase,g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.fechaInicio,g.intereses.fechaFin):[];
+      const gDocHasPR = g.intereses.activo&&g.intereses.periodoResultados?.length>0;
+      const gInteresLabel = g.intereses.activo&&g.intereses.tipoTasa?'Intereses según '+(TASA_ABREV[g.intereses.tipoTasa]||g.intereses.tipoTasa):'';
+      const umaGLabel = g.usaUMA===true&&g.cantUMA>0?` (${fmtUMA(g.cantUMA)} UMA &times; ${fmt(g.valorUMA||0)})`:'';
+      html += buildItemRow(`${g.tipo}${g.descripcion?' &#8212; '+g.descripcion:''}${umaGLabel}`,gInteresLabel,mb,g.fecha,g.foja,null,null,null);
+      html += pagoRows(g.pagos.filter(p=>p.concepto==='gastos'));
+      if(gDocHasPR) html += periodoAPIRows(g.intereses.periodoResultados,'gastos documentados',g.intereses.tipoTasa,true);
+      else if(gDocPer.length>1) html += periodoIntRows(gDocPer,'gastos documentados',fmtTasaExport(g.intereses.tipoTasa,g.intereses.tasaPctAnual,null,true));
+      else html += interesSimpleRow(g.intereses,intG,'gastos documentados',fmtTasaExport(g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.resultado?.tasa,true),g.intereses.resultado?.dias||gDocPer[0]?.dias);
+      html += pagoRows(g.pagos.filter(p=>p.concepto==='int_gastos'));
+    });
     html += `<tr style="${subtotalStyle}">
       <td colspan="3" style="${cellB}"><strong>Saldo Gastos Documentados + Intereses</strong></td>
       <td colspan="3"></td>
@@ -2440,19 +2442,25 @@ function buildExportBody(datos){
 
   // ── GASTOS NO DOCUMENTADOS ──
   if(gnd>0){
-    const umaGndLabel = datos.gastosNoDoc.usaUMA===true&&datos.gastosNoDoc.cantUMA>0 ? ` (${fmtUMA(datos.gastosNoDoc.cantUMA)} UMA &times; ${fmt(datos.gastosNoDoc.valorUMA||0)})` : '';
-    html += buildItemRow(`Gastos No documentados${datos.gastosNoDoc.descripcion?' &#8212; '+datos.gastosNoDoc.descripcion:''}${umaGndLabel}`, '', gnd, datos.gastosNoDoc.fecha, datos.gastosNoDoc.foja, null, null, null);
-    if(intGnd>0){
-      const gndDates=datos.gastosNoDoc.intereses.activo?`${fmtFecha(datos.gastosNoDoc.intereses.fechaInicio)}<br>&rarr;${fmtFecha(datos.gastosNoDoc.intereses.fechaFin)}`:'';
-      const gndTasa=fmtTasaExport(datos.gastosNoDoc.intereses.tipoTasa,datos.gastosNoDoc.intereses.tasaPctAnual,datos.gastosNoDoc.intereses.resultado?.tasa,true);
-      const gndDias=datos.gastosNoDoc.intereses.resultado?.dias||'';
-      html += intRow('Intereses s/ gastos no documentados',gndDates,gndTasa,gndDias,intGnd);
-      html += `<tr style="${subtotalStyle}">
-        <td colspan="3" style="${cellB}"><strong>Saldo Gastos No Documentados + Intereses</strong></td>
-        <td colspan="3"></td>
-        <td style="${cellB}text-align:right"><strong>${fmt(saldoGnd+saldoIntGnd)}</strong></td>
-      </tr>`;
-    }
+    const gndPagosBase = datos.gastosNoDoc.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+    const gndPer = (datos.gastosNoDoc.intereses.activo&&datos.gastosNoDoc.intereses.tipoTasa&&!datos.gastosNoDoc.intereses.periodoResultados)
+      ?calcularPeriodos(gnd,gndPagosBase,datos.gastosNoDoc.intereses.tipoTasa,datos.gastosNoDoc.intereses.tasaPctAnual,datos.gastosNoDoc.intereses.fechaInicio,datos.gastosNoDoc.intereses.fechaFin):[];
+    const gndHasPR = datos.gastosNoDoc.intereses.activo&&datos.gastosNoDoc.intereses.periodoResultados?.length>0;
+    const gndInteresLabel = datos.gastosNoDoc.intereses.activo&&datos.gastosNoDoc.intereses.tipoTasa?'Intereses según '+(TASA_ABREV[datos.gastosNoDoc.intereses.tipoTasa]||datos.gastosNoDoc.intereses.tipoTasa):'';
+    const gndPagos = datos.gastosNoDoc.pagos;
+    const umaGndLabel = datos.gastosNoDoc.usaUMA===true&&datos.gastosNoDoc.cantUMA>0?` (${fmtUMA(datos.gastosNoDoc.cantUMA)} UMA &times; ${fmt(datos.gastosNoDoc.valorUMA||0)})`:'';
+    html += buildItemRow(`Gastos No documentados${datos.gastosNoDoc.descripcion?' &#8212; '+datos.gastosNoDoc.descripcion:''}${umaGndLabel}`,gndInteresLabel,gnd,datos.gastosNoDoc.fecha,datos.gastosNoDoc.foja,null,null,null);
+    html += pagoRows(gndPagos.filter(p=>p.concepto==='gastos'));
+    if(gndHasPR) html += periodoAPIRows(datos.gastosNoDoc.intereses.periodoResultados,'gastos no documentados',datos.gastosNoDoc.intereses.tipoTasa,true);
+    else if(gndPer.length>1) html += periodoIntRows(gndPer,'gastos no documentados',fmtTasaExport(datos.gastosNoDoc.intereses.tipoTasa,datos.gastosNoDoc.intereses.tasaPctAnual,null,true));
+    else html += interesSimpleRow(datos.gastosNoDoc.intereses,intGnd,'gastos no documentados',fmtTasaExport(datos.gastosNoDoc.intereses.tipoTasa,datos.gastosNoDoc.intereses.tasaPctAnual,datos.gastosNoDoc.intereses.resultado?.tasa,true),datos.gastosNoDoc.intereses.resultado?.dias||gndPer[0]?.dias);
+    html += pagoRows(gndPagos.filter(p=>p.concepto==='int_gastos'));
+    const hayPagGndAny = sumPC(gndPagos,'gastos')>0||sumPC(gndPagos,'int_gastos')>0;
+    if(hayPagGndAny||intGnd>0) html += `<tr style="${subtotalStyle}">
+      <td colspan="3" style="${cellB}"><strong>Saldo Gastos No Documentados + Intereses</strong></td>
+      <td colspan="3"></td>
+      <td style="${cellB}text-align:right"><strong>${fmt(saldoGnd+saldoIntGnd)}</strong></td>
+    </tr>`;
   }
 
   html += '</tbody></table>';
@@ -2493,34 +2501,27 @@ function buildExportBody(datos){
         <th style="background:#2B7A86;color:#fff;${sC}text-align:right;width:110px">Monto</th>
       </tr></thead>
       <tbody>
-        ${capArr.map(({c,intC,sC:sCC,sIC},i)=>{
-          const capLblR = (capitals.length>1 ? `Capital #${i+1}` : 'Capital') + (c.descripcion ? ` (${c.descripcion})` : '');
-          return `<tr><td style="${sC}">${capLblR}</td><td style="${sC}text-align:right">${fmt(sCC)}</td></tr>`
-            +(intC>0?`<tr><td style="${sC}">Intereses de capital${c.descripcion?' ('+c.descripcion+')':capitals.length>1?' #'+(i+1):''}</td><td style="${sC}text-align:right">${fmt(sIC)}</td></tr>`:'');
-        }).join('')}
-        ${datos.honorarios.length>0?datos.honorarios.map((h,i)=>{
+        <tr><td style="${sC}">Capital</td><td style="${sC}text-align:right">${fmt(totalCapSaldo)}</td></tr>
+        ${totalCapIntSaldo>0?`<tr><td style="${sC}">Intereses de Capital</td><td style="${sC}text-align:right">${fmt(totalCapIntSaldo)}</td></tr>`:''}
+        ${datos.honorarios.map((h,i)=>{
           const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
           const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
           const sH=Math.max(0,mH-sumPC(h.pagos,'honorarios'));
           const sIH=Math.max(0,iH-sumPC(h.pagos,'int_honorarios'));
           const usaUMA=h.usaUMA===true;
-          const umaRest=usaUMA&&h.valorUMA>0?sH/h.valorUMA:0;
-          const umaIntRest=usaUMA&&h.valorUMA>0?sIH/h.valorUMA:0;
-          const umaInfo=usaUMA&&umaRest>0?`<br><span style="font-size:.65rem;color:#555">${fmtUMA(umaRest)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
-          const umaIntInfo=usaUMA&&umaIntRest>0?`<br><span style="font-size:.65rem;color:#555">${fmtUMA(umaIntRest)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
-          return `<tr><td style="${sC}">Honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaInfo}</td><td style="${sC}text-align:right">${fmt(sH)}</td></tr>`
-            +(h.intereses.activo&&sIH>0?`<tr><td style="${sC}">Intereses de honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaIntInfo}</td><td style="${sC}text-align:right">${fmt(sIH)}</td></tr>`:'');
-        }).join(''):''}
-        ${datos.gastosDoc.length>0?datos.gastosDoc.map((g,i)=>{
-          const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);
-          const iG=getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);
-          const sG=Math.max(0,mb-sumPC(g.pagos,'gastos'));
-          const sIG=Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
-          return `<tr><td style="${sC}">Gastos documentados${g.descripcion?' ('+g.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(sG)}</td></tr>`
-            +(g.intereses.activo&&sIG>0?`<tr><td style="${sC}">Intereses sobre gastos documentados${g.descripcion?' ('+g.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(sIG)}</td></tr>`:'');
-        }).join(''):''}
-        ${gnd>0?`<tr><td style="${sC}">Gastos No documentados${datos.gastosNoDoc.descripcion?' ('+datos.gastosNoDoc.descripcion+')':''}</td><td style="${sC}text-align:right">${fmt(saldoGnd)}</td></tr>`:''}
-        ${saldoIntGnd>0?`<tr><td style="${sC}">Intereses sobre gastos No documentados</td><td style="${sC}text-align:right">${fmt(saldoIntGnd)}</td></tr>`:''}
+          const umaInfo=usaUMA&&h.valorUMA>0&&sH>0?`<br><span style="font-size:.85em;color:#555">${fmtUMA(sH/h.valorUMA)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
+          const umaIntInfo=usaUMA&&h.valorUMA>0&&sIH>0?`<br><span style="font-size:.85em;color:#555">${fmtUMA(sIH/h.valorUMA)} UMA &times; ${fmt(h.valorUMA)}</span>`:'';
+          return (sH>0?`<tr><td style="${sC}">Honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaInfo}</td><td style="${sC}text-align:right">${fmt(sH)}</td></tr>`:'')
+            +(sIH>0?`<tr><td style="${sC}">Intereses de honorarios${h.descripcion?' ('+h.descripcion+')':''}${umaIntInfo}</td><td style="${sC}text-align:right">${fmt(sIH)}</td></tr>`:'');
+        }).join('')}
+        ${(()=>{
+          const sGDocTotal=sGDocArr.reduce((s,x)=>s+x.saldo,0);
+          const sGDocIntTotal=sGDocArr.reduce((s,x)=>s+x.sInt,0);
+          return (sGDocTotal>0?`<tr><td style="${sC}">Gastos documentados</td><td style="${sC}text-align:right">${fmt(sGDocTotal)}</td></tr>`:'')
+            +(sGDocIntTotal>0?`<tr><td style="${sC}">Intereses s/ gastos documentados</td><td style="${sC}text-align:right">${fmt(sGDocIntTotal)}</td></tr>`:'');
+        })()}
+        ${saldoGnd>0?`<tr><td style="${sC}">Gastos No documentados</td><td style="${sC}text-align:right">${fmt(saldoGnd)}</td></tr>`:''}
+        ${saldoIntGnd>0?`<tr><td style="${sC}">Intereses s/ gastos No documentados</td><td style="${sC}text-align:right">${fmt(saldoIntGnd)}</td></tr>`:''}
         <tr style="background:#2B7A86;color:#fff;font-weight:700">
           <td style="${sC}font-size:.8rem">TOTAL AL ${fmtFecha(fechaCalc)}</td>
           <td style="${sC}text-align:right;font-size:.85rem">${fmt(totalPlanilla)}</td>
@@ -2709,43 +2710,39 @@ function exportarExcel(){
     secItemDRows=[]; secPagoDRows=[]; secIntGRows=[];
   }
 
-  // ── CAPITAL (ÚNICO RENGLÓN) ──
-  const firstCapXL = capArr.length>0 ? capArr[0].c : null;
-  const capXLLbl = capitals.length===1&&firstCapXL.descripcion ? `Capital — ${firstCapXL.descripcion}` : 'Capital';
-  dRow(capXLLbl, firstCapXL?fmtFecha(firstCapXL.fecha):'', capitals.length===1?(firstCapXL.foja||''):'', totalCapMonto, null, null, null);
-  if(totalCapInt>0){
-    let cILbl='', cDates='', cDias=null;
-    if(capitals.length===1 && firstCapXL.intereses.activo){
-      cILbl=fmtTasaXL(firstCapXL.intereses.tipoTasa,firstCapXL.intereses.tasaPctAnual,firstCapXL.intereses.resultado?.tasa);
-      cDates=`${fmtFecha(firstCapXL.intereses.fechaInicio)} → ${fmtFecha(firstCapXL.intereses.fechaFin)}`;
-      cDias=firstCapXL.intereses.resultado?.dias||null;
-    }
-    cset(0,R,'  ↳ Intereses de Capital','s',S.per);
-    cset(1,R,cDates,'s',S.perC); cset(2,R,'','s',S.per); cset(3,R,'','s',S.per);
-    cset(4,R,cILbl,'s',S.perC);
-    if(cDias) cset(5,R,typeof cDias==='number'?cDias:parseInt(cDias)||0,'n',S.perC); else cset(5,R,'','s',S.per);
-    cset(6,R,totalCapInt,'n',S.perM); secIntGRows.push(R); R++;
-  }
+  // ── CAPITAL (DETALLE COMPLETO) ──
+  capArr.forEach(({c,intC,sC,sIC},i)=>{
+    const cPBase=c.pagos.filter(p=>p.concepto==='capital'&&p.fecha&&p.monto>0);
+    const cPer=(c.intereses.activo&&c.intereses.tipoTasa&&!c.intereses.periodoResultados)?calcularPeriodos(c.monto,cPBase,c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.fechaInicio,c.intereses.fechaFin):[];
+    const cILbl=c.intereses.activo?fmtTasaXL(c.intereses.tipoTasa,c.intereses.tasaPctAnual,c.intereses.resultado?.tasa):'';
+    const capLbl=(capitals.length>1?`Capital #${i+1}`:'Capital')+(c.descripcion?` — ${c.descripcion}`:'');
+    dRow(capLbl,fmtFecha(c.fecha),c.foja,c.monto,cILbl,null,null);
+    xlPagos(c.pagos.filter(p=>p.concepto==='capital'));
+    if(c.intereses.activo&&c.intereses.periodoResultados?.length>0) xlAPI(c.intereses.periodoResultados,'capital',c.intereses.tipoTasa);
+    else if(cPer.length>1) xlPeriodos(cPer,'capital',fmtTasaXL(c.intereses.tipoTasa,c.intereses.tasaPctAnual),getTNAFija(c.intereses.tipoTasa,c.intereses.tasaPctAnual));
+    else xlSimple(c.intereses,intC,'capital',cILbl,c.intereses.resultado?.dias||cPer[0]?.dias,c.monto);
+    xlPagos(c.pagos.filter(p=>p.concepto==='interes'));
+  });
   xlSub('Saldo Capital + Intereses', totalCapSaldo+totalCapIntSaldo);
 
-  // ── HONORARIOS (UN RENGLÓN POR PROFESIONAL) ──
+  // ── HONORARIOS (DETALLE COMPLETO) ──
   if(d.honorarios.length>0){
     d.honorarios.forEach((h,i)=>{
       const usaUMA=h.usaUMA===true;
       const mH=usaUMA?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
       const intH=usaUMA?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
+      const hBase=h.pagos.filter(p=>p.concepto==='honorarios'&&p.fecha&&p.monto>0);
+      const hPer=(h.intereses.activo&&h.intereses.tipoTasa&&!h.intereses.periodoResultados)
+        ?(usaUMA?calcPeriodosUMA(h.cantUMA||0,h.valorUMA||0,hBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)
+               :calcularPeriodos(mH,hBase,h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.fechaInicio,h.intereses.fechaFin)):[];
       const uStr=usaUMA&&h.cantUMA>0?` (${h.cantUMA} UMA × $${(h.valorUMA||0).toLocaleString('es-AR')})`:'';
-      dRow(`Honorarios${h.descripcion?' — '+h.descripcion:''}${uStr}`,fmtFecha(h.fecha),h.foja,mH,null,null,null);
-      if(h.intereses.activo&&intH>0){
-        const hILbl=fmtTasaXL(h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.resultado?.tasa);
-        const hDates=`${fmtFecha(h.intereses.fechaInicio)} → ${fmtFecha(h.intereses.fechaFin)}`;
-        const hDias=h.intereses.resultado?.dias||null;
-        cset(0,R,`  ↳ Intereses de honorarios${h.descripcion?' — '+h.descripcion:''}` ,'s',S.per);
-        cset(1,R,hDates,'s',S.perC); cset(2,R,'','s',S.per); cset(3,R,'','s',S.per);
-        cset(4,R,hILbl,'s',S.perC);
-        if(hDias) cset(5,R,typeof hDias==='number'?hDias:parseInt(hDias)||0,'n',S.perC); else cset(5,R,'','s',S.per);
-        cset(6,R,intH,'n',S.perM); secIntGRows.push(R); R++;
-      }
+      const hILbl=h.intereses.activo?fmtTasaXL(h.intereses.tipoTasa,h.intereses.tasaPctAnual,h.intereses.resultado?.tasa):'';
+      dRow(`Honorarios${h.descripcion?' — '+h.descripcion:''}${uStr}`,fmtFecha(h.fecha),h.foja,mH,hILbl,null,null);
+      xlPagos(h.pagos.filter(p=>p.concepto==='honorarios'));
+      if(h.intereses.activo&&h.intereses.periodoResultados?.length>0) xlAPI(h.intereses.periodoResultados,'honorarios',h.intereses.tipoTasa);
+      else if(hPer.length>1) xlPeriodos(hPer,'honorarios',fmtTasaXL(h.intereses.tipoTasa,h.intereses.tasaPctAnual),getTNAFija(h.intereses.tipoTasa,h.intereses.tasaPctAnual));
+      else xlSimple(h.intereses,intH,'honorarios',hILbl,h.intereses.resultado?.dias||hPer[0]?.dias,mH);
+      xlPagos(h.pagos.filter(p=>p.concepto==='int_honorarios'));
     });
     const sHon=d.honorarios.reduce((s,h,i)=>{
       const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
@@ -2755,25 +2752,22 @@ function exportarExcel(){
     xlSub('Saldo Honorarios + Intereses', sHon);
   }
 
-  // ── GASTOS DOCUMENTADOS (ÚNICO RENGLÓN) ──
+  // ── GASTOS DOCUMENTADOS (DETALLE COMPLETO) ──
   if(d.gastosDoc.length>0){
-    const totalGDocXL=d.gastosDoc.reduce((s,g)=>{const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);return s+mb;},0);
-    const totalIntGDocXL=d.gastosDoc.reduce((s,g,i)=>{const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);return s+getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);},0);
-    dRow('Gastos documentados','','',totalGDocXL,null,null,null);
-    if(totalIntGDocXL>0){
-      let gILbl='',gDates='',gDias=null;
-      if(d.gastosDoc.length===1&&d.gastosDoc[0].intereses.activo){
-        const g0=d.gastosDoc[0];
-        gILbl=fmtTasaXL(g0.intereses.tipoTasa,g0.intereses.tasaPctAnual,g0.intereses.resultado?.tasa);
-        gDates=`${fmtFecha(g0.intereses.fechaInicio)} → ${fmtFecha(g0.intereses.fechaFin)}`;
-        gDias=g0.intereses.resultado?.dias||null;
-      }
-      cset(0,R,'  ↳ Intereses s/ gastos documentados','s',S.per);
-      cset(1,R,gDates,'s',S.perC); cset(2,R,'','s',S.per); cset(3,R,'','s',S.per);
-      cset(4,R,gILbl,'s',S.perC);
-      if(gDias) cset(5,R,typeof gDias==='number'?gDias:parseInt(gDias)||0,'n',S.perC); else cset(5,R,'','s',S.per);
-      cset(6,R,totalIntGDocXL,'n',S.perM); secIntGRows.push(R); R++;
-    }
+    d.gastosDoc.forEach((g,i)=>{
+      const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);
+      const intG=getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);
+      const gBase=g.pagos.filter(p=>p.concepto==='gastos'&&p.fecha&&p.monto>0);
+      const gPer=(g.intereses.activo&&g.intereses.tipoTasa&&!g.intereses.periodoResultados)?calcularPeriodos(mb,gBase,g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.fechaInicio,g.intereses.fechaFin):[];
+      const gILbl=g.intereses.activo?fmtTasaXL(g.intereses.tipoTasa,g.intereses.tasaPctAnual,g.intereses.resultado?.tasa):'';
+      const umaGStr=g.usaUMA===true&&g.cantUMA>0?` (${g.cantUMA} UMA × $${(g.valorUMA||0).toLocaleString('es-AR')})`:'';
+      dRow(`${g.tipo}${g.descripcion?' — '+g.descripcion:''}${umaGStr}`,fmtFecha(g.fecha),g.foja,mb,gILbl,null,null);
+      xlPagos(g.pagos.filter(p=>p.concepto==='gastos'));
+      if(g.intereses.activo&&g.intereses.periodoResultados?.length>0) xlAPI(g.intereses.periodoResultados,'gastos documentados',g.intereses.tipoTasa);
+      else if(gPer.length>1) xlPeriodos(gPer,'gastos documentados',fmtTasaXL(g.intereses.tipoTasa,g.intereses.tasaPctAnual),getTNAFija(g.intereses.tipoTasa,g.intereses.tasaPctAnual));
+      else xlSimple(g.intereses,intG,'gastos documentados',gILbl,g.intereses.resultado?.dias||gPer[0]?.dias,mb);
+      xlPagos(g.pagos.filter(p=>p.concepto==='int_gastos'));
+    });
     const sGDocXL=d.gastosDoc.reduce((s,g,i)=>{const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);const iG=getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);return s+Math.max(0,mb-sumPC(g.pagos,'gastos'))+Math.max(0,iG-sumPC(g.pagos,'int_gastos'));},0);
     xlSub('Saldo Gastos Documentados + Intereses', sGDocXL);
   }
@@ -2824,11 +2818,8 @@ function exportarExcel(){
     const sM={font:{sz:9},border:bdr,numFmt:'"$"#,##0.00',alignment:{horizontal:'right'}};
     cset(0,R,label,'s',sL); cset(1,R,val,'n',sM); mfill(R,1,6,sL); R++;
   }
-  capArr.forEach(({c,intC,sC,sIC},i)=>{
-    const capLblXL = (capitals.length>1 ? `Capital #${i+1}` : 'Capital') + (c.descripcion ? ` — ${c.descripcion}` : '');
-    resR(capLblXL, sC);
-    if(intC>0) resR(`Intereses de capital${c.descripcion?' ('+c.descripcion+')':capitals.length>1?' #'+(i+1):''}`, sIC);
-  });
+  if(totalCapSaldo>0) resR('Capital', totalCapSaldo);
+  if(totalCapIntSaldo>0) resR('Intereses de Capital', totalCapIntSaldo);
   d.honorarios.forEach((h,i)=>{
     const mH=h.usaUMA===true?(h.cantUMA||0)*(h.valorUMA||0):(h.monto||0);
     const iH=h.usaUMA===true?getInteresHonorariosUMA(h,i):getInteresConPeriodos(h.intereses,mH,h.pagos,'honor_'+i);
@@ -2842,15 +2833,18 @@ function exportarExcel(){
     if(sH>0) resR(honLbl,sH);
     if(h.intereses.activo&&sIH>0) resR(intLbl,sIH);
   });
-  d.gastosDoc.forEach((g,i)=>{
-    const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);
-    const iG=getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);
-    const sG=Math.max(0,mb-sumPC(g.pagos,'gastos'));
-    const sIG=Math.max(0,iG-sumPC(g.pagos,'int_gastos'));
-    if(sG>0) resR(`Gastos documentados${g.descripcion?' ('+g.descripcion+')':''}`,sG);
-    if(g.intereses.activo&&sIG>0) resR(`Intereses sobre gastos documentados${g.descripcion?' ('+g.descripcion+')':''}`,sIG);
-  });
-  if(gnd>0) resR(`Gastos No documentados${d.gastosNoDoc.descripcion?' ('+d.gastosNoDoc.descripcion+')':''}`,Math.max(0,gnd-sumPC(d.gastosNoDoc.pagos,'gastos')));
+  (()=>{
+    let sGDocTotal=0, sGDocIntTotal=0;
+    d.gastosDoc.forEach((g,i)=>{
+      const mb=g.usaUMA===true?(g.cantUMA||0)*(g.valorUMA||0):(g.monto||0);
+      const iG=getInteresConPeriodos(g.intereses,mb,g.pagos,'gdoc_'+i);
+      sGDocTotal+=Math.max(0,mb-sumPC(g.pagos,'gastos'));
+      sGDocIntTotal+=g.intereses.activo?Math.max(0,iG-sumPC(g.pagos,'int_gastos')):0;
+    });
+    if(sGDocTotal>0) resR('Gastos documentados', sGDocTotal);
+    if(sGDocIntTotal>0) resR('Intereses sobre gastos documentados', sGDocIntTotal);
+  })();
+  if(gnd>0) resR('Gastos No documentados', Math.max(0,gnd-sumPC(d.gastosNoDoc.pagos,'gastos')));
   if(intGnd>0){ const sIG=Math.max(0,intGnd-sumPC(d.gastosNoDoc.pagos,'int_gastos')); if(sIG>0) resR('Intereses sobre gastos No documentados',sIG); }
   const resTotFml=resRowStart!==null&&resRowEnd!==null?`SUM(B${resRowStart+1}:B${resRowEnd+1})`:null;
   cset(0,R,`TOTAL AL ${fmtFecha(fechaCalc)}`,'s',S.totH); mfill(R,0,0,S.totH);
