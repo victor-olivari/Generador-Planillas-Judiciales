@@ -615,12 +615,6 @@ const WORKER_CODE = `export default {
       } catch(e){ return Response.json({error:e.message},{headers:cors}); }
     }
 
-    function getField(html, name) {
-      const re = new RegExp(\`<input[^>]+name=["']\` + name + \`["'][^>]*>\`, 'i');
-      const tag = html.match(re)?.[0] || '';
-      return tag.match(/value=["']([^"']*)/i)?.[1] || '';
-    }
-
     if(p.accion === 'uma') {
       try {
         const csjnResp = await fetch('https://www.csjn.gov.ar/novedades/noticias', {
@@ -652,22 +646,24 @@ const WORKER_CODE = `export default {
 
     const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
 
-    let phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
+    let html = '', phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
     try {
       const getResp = await fetch(pjUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'es-AR,es;q=0.9',
         }
       });
       const setCookie = getResp.headers.get('set-cookie') || '';
-      phpsessid = setCookie.match(/PHPSESSID=([^;,\\s]+)/)?.[1] || '';
-      const html = await getResp.text();
-      sess = getField(html, 'script_case_session') || phpsessid;
-      scInit = getField(html, 'script_case_init');
-      csrf = getField(html, 'csrf_token');
-      campofuente = getField(html, 'campofuente');
+      phpsessid = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
+      html = await getResp.text();
+      sess = html.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
+          || html.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
+          || phpsessid;
+      scInit = html.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
+      csrf   = html.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
+      campofuente = html.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
     } catch(e) {
       return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
     }
@@ -700,7 +696,7 @@ const WORKER_CODE = `export default {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Cookie': \`PHPSESSID=\${phpsessid || sess}\`,
           'Referer': pjUrl,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'es-AR,es;q=0.9',
           'Origin': 'https://www.justiciachaco.gov.ar',
@@ -719,18 +715,13 @@ const WORKER_CODE = `export default {
     const diasMatch = resultText.match(/D.as del Per.odo calculado:\\s*([0-9]+)/);
 
     if (!interesMatch) {
-      const taIdx = resultHtml.toLowerCase().indexOf('<textarea');
-      const intIdx = resultHtml.indexOf('Intereses:');
-      const sajaxIdx = resultHtml.indexOf('sajax_uri');
-      const sajaxUri = sajaxIdx>=0 ? resultHtml.substring(sajaxIdx, sajaxIdx+150) : 'not found';
       return Response.json({
         error: 'Sin resultado',
         sess: sess ? 'ok' : 'vacio',
         csrf: csrf ? 'ok' : 'vacio',
-        responseLen: resultHtml.length,
-        textareaContent: taIdx>=0 ? resultHtml.substring(taIdx, taIdx+400) : 'no textarea',
-        interesContext: intIdx>=0 ? resultHtml.substring(Math.max(0,intIdx-50), intIdx+300) : 'Intereses: not found',
-        sajaxUri,
+        scInit: scInit ? 'ok' : 'vacio',
+        resultText: resultText.substring(0, 200),
+        htmlSnippet: resultHtml.substring(0, 500),
       }, { headers: { 'Access-Control-Allow-Origin': '*' }});
     }
 
