@@ -617,50 +617,33 @@ const WORKER_CODE = `export default {
 
     if(p.accion === 'uma') {
       const umaUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      const extractValor = html => {
-        const pats = [
-          /(?:suma de|equivalente a|importe de|valor de|fijar?(?:\\s+en)?)\\s*\\$\\s*([\\d]{1,3}(?:\\.[\\d]{3})+)/gi,
-          /\\$\\s*([\\d]{1,3}(?:\\.[\\d]{3})+)/g,
-          /pesos\\s+([\\d]{1,3}(?:\\.[\\d]{3})+)/gi,
-        ];
-        for(const re of pats){
-          let m; re.lastIndex=0;
-          while((m=re.exec(html))!==null){
-            const n=parseInt((m[1]||'').replace(/\\./g,''));
-            if(n>=50000&&n<=5000000) return n;
-          }
-        }
+      // Busca importe argentino en bytes crudos del PDF: "($ 95.626)" o "$ 95.626"
+      const extraerDePDF = bytes => {
+        const txt = new TextDecoder('latin1').decode(bytes);
+        const m = txt.match(/\\(\\s*\\$\\s*([\\d]{2,3}\\.[\\d]{3})\\s*\\)/)
+               || txt.match(/\\$\\s*([\\d]{2,3}\\.[\\d]{3})/);
+        if(m){ const n=parseInt((m[1]||'').replace(/\\./g,'')); if(n>=50000&&n<=5000000) return n; }
         return null;
       };
-      // Intento 1: página dedicada /transparencia/uma
       try {
-        const r = await fetch('https://www.csjn.gov.ar/transparencia/uma', {headers:{'User-Agent':umaUA,'Accept':'text/html'}});
-        const html = await r.text();
-        const v = extractValor(html);
-        if(v) return Response.json({valor:v,ok:true,fuente:'csjn-uma'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
-        const lm = html.match(/href="(\\/transparencia\\/uma\\/[^"?#\\s]+)"/i)
-                || html.match(/href="(\\/[^"]*(?:resolucion|documento|detalle)[^"?#\\s]*)"/i)
-                || html.match(/href="(\\/[^"]*\\/\\d{3,}[^"?#\\s]*)"/);
-        if(lm){
-          const dr = await fetch('https://www.csjn.gov.ar'+lm[1],{headers:{'User-Agent':umaUA}});
-          const dh = await dr.text();
-          const dv = extractValor(dh);
-          if(dv) return Response.json({valor:dv,ok:true,fuente:'csjn-resolucion'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
+        // Paso 1: obtener página /transparencia/uma y encontrar el link al PDF más reciente
+        const lr = await fetch('https://www.csjn.gov.ar/transparencia/uma',{headers:{'User-Agent':umaUA,'Accept':'text/html'}});
+        const lh = await lr.text();
+        // Buscar href con "descargar" e "ID=" (patrón del sitio CSJN)
+        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\d+)[^"]*)"/i)
+                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i)
+                || lh.match(/href="([^"]*[?&]ID=(\\d+)[^"]*)"[^>]*>\\s*(?:[^<]*<[^>]+>)*[^<]*(?:Resoluci|UMA)/i);
+        if(dm){
+          const du = dm[1].startsWith('http')?dm[1]:'https://www.csjn.gov.ar'+dm[1];
+          // Paso 2: descargar el PDF y extraer el monto del texto crudo
+          const pr = await fetch(du,{headers:{'User-Agent':umaUA,'Accept':'application/pdf,*/*'}});
+          const buf = await pr.arrayBuffer();
+          const v = extraerDePDF(buf);
+          if(v) return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
         }
       } catch(e){}
-      // Intento 2: novedades (fallback anterior)
-      try {
-        const r = await fetch('https://www.csjn.gov.ar/novedades/noticias', {headers:{'User-Agent':umaUA,'Accept':'text/html'}});
-        const html = await r.text();
-        const lm = html.match(/href="(\\/novedades\\/detalle\\/\\d+)"[^>]*>(?:[^<]|\\n){0,200}UMA/i);
-        if(lm){
-          const dr = await fetch('https://www.csjn.gov.ar'+lm[1],{headers:{'User-Agent':umaUA}});
-          const dh = await dr.text();
-          const dv = extractValor(dh);
-          if(dv) return Response.json({valor:dv,ok:true,fuente:'csjn-noticias'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
-        }
-      } catch(e){}
-      return Response.json({valor:92482,ok:true,fuente:'default'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}});
+      // Fallback: último valor conocido (actualizar manualmente cuando CSJN no sea accesible)
+      return Response.json({valor:95626,ok:true,fuente:'default'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}});
     }
 
     const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
@@ -1715,14 +1698,15 @@ function getInteresConPeriodos(int, monto, pagos, rubroKey){
 // ═══════════════════════════════════════════════════════════════
 // UMA — UNIDAD DE MEDIDA ARANCELARIA (Ley 4228-C, Chaco)
 // ═══════════════════════════════════════════════════════════════
-const UMA_DEFAULT_VALOR = 92482;  // $92.482 — CSJN Res.SGA N° 538/2026 (desde 01/02/2026)
-const UMA_DEFAULT_FECHA = '2026-02-01';
+const UMA_DEFAULT_VALOR = 95626;  // $95.626 — CSJN Res.SGA N° 1076/2026 (desde 01/03/2026)
+const UMA_DEFAULT_FECHA = '2026-03-01';
 const UMA_CACHE_KEY = 'uma_valor_cache';
 
 function getUMAVigente(){
   try {
     const c = JSON.parse(localStorage.getItem(UMA_CACHE_KEY)||'{}');
-    if(c.valor && c.ts && (Date.now()-c.ts < 86400000)) return c.valor;
+    // Descartar caché si el valor es el anterior ($92.482 o menor)
+    if(c.valor && c.ts && c.valor > 92482 && (Date.now()-c.ts < 86400000)) return c.valor;
   } catch(e){}
   return UMA_DEFAULT_VALOR;
 }
