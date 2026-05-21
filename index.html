@@ -617,7 +617,8 @@ const WORKER_CODE = `export default {
 
     if(p.accion === 'uma') {
       const umaUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      // Busca importe argentino en bytes crudos del PDF: "($ 95.626)" o "$ 95.626"
+      // Extrae importe argentino del texto crudo del PDF.
+      // El 1° art. de "SE RESUELVE" siempre tiene el formato: ($ 95.626)
       const extraerDePDF = bytes => {
         const txt = new TextDecoder('latin1').decode(bytes);
         const m = txt.match(/\\(\\s*\\$\\s*([\\d]{2,3}\\.[\\d]{3})\\s*\\)/)
@@ -626,23 +627,34 @@ const WORKER_CODE = `export default {
         return null;
       };
       try {
-        // Paso 1: obtener página /transparencia/uma y encontrar el link al PDF más reciente
+        // Paso 1: /transparencia/uma → primer link al PDF de la resolución más reciente
         const lr = await fetch('https://www.csjn.gov.ar/transparencia/uma',{headers:{'User-Agent':umaUA,'Accept':'text/html'}});
         const lh = await lr.text();
-        // Buscar href con "descargar" e "ID=" (patrón del sitio CSJN)
         const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\d+)[^"]*)"/i)
-                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i)
-                || lh.match(/href="([^"]*[?&]ID=(\\d+)[^"]*)"[^>]*>\\s*(?:[^<]*<[^>]+>)*[^<]*(?:Resoluci|UMA)/i);
+                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i);
         if(dm){
           const du = dm[1].startsWith('http')?dm[1]:'https://www.csjn.gov.ar'+dm[1];
-          // Paso 2: descargar el PDF y extraer el monto del texto crudo
+          // Paso 2: descargar PDF y buscar "($ XX.XXX)" en el texto crudo
           const pr = await fetch(du,{headers:{'User-Agent':umaUA,'Accept':'application/pdf,*/*'}});
           const buf = await pr.arrayBuffer();
           const v = extraerDePDF(buf);
-          if(v) return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
+          if(v){
+            // Guardar en KV para que el fallback siempre tenga el último valor real
+            if(env&&env.KV_HISTORY){
+              try{ await env.KV_HISTORY.put('uma_vigente',JSON.stringify({valor:v,fecha:new Date().toISOString()}),{expirationTtl:7776000}); }catch(e){}
+            }
+            return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
+          }
         }
       } catch(e){}
-      // Fallback: último valor conocido (actualizar manualmente cuando CSJN no sea accesible)
+      // Fallback 1: último valor exitoso guardado en KV (se auto-actualiza con cada scrape)
+      if(env&&env.KV_HISTORY){
+        try{
+          const kv=await env.KV_HISTORY.get('uma_vigente',{type:'json'});
+          if(kv&&kv.valor>50000) return Response.json({valor:kv.valor,ok:true,fuente:'kv-cache'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=3600'}});
+        }catch(e){}
+      }
+      // Fallback 2: valor de base conocido (solo si KV tampoco responde)
       return Response.json({valor:95626,ok:true,fuente:'default'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}});
     }
 
