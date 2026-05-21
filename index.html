@@ -1729,7 +1729,8 @@ async function fetchUMAFromWorker(){
   try {
     const r = await fetch(wurl + '?accion=uma');
     const d = await r.json();
-    if(d.ok && d.valor > 10000) {
+    // Rechazar valores menores al default conocido (evita que worker desactualizado pise el valor correcto)
+    if(d.ok && d.valor >= UMA_DEFAULT_VALOR) {
       localStorage.setItem(UMA_CACHE_KEY, JSON.stringify({valor:d.valor, ts:Date.now(), fuente:d.fuente||''}));
       return d.valor;
     }
