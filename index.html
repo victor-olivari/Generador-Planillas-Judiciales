@@ -554,7 +554,10 @@ function showToast(msg, tipo='success'){
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURACIÓN CLOUDFLARE WORKER
 // ═══════════════════════════════════════════════════════════════
-const WORKER_CODE = `export default {
+const WORKER_CODE = `let cachedTokens = null;
+let cachedTime = 0;
+
+export default {
   async fetch(request, env) {
     const cors = {
       'Access-Control-Allow-Origin': '*',
@@ -661,25 +664,36 @@ const WORKER_CODE = `export default {
     const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
 
     let html = '', phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
-    try {
-      const getResp = await fetch(pjUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'es-AR,es;q=0.9',
+    
+    // Usar tokens cacheados si tienen menos de 10 minutos
+    if(cachedTokens && (Date.now() - cachedTime) < 600000) {
+      ({ phpsessid, sess, scInit, csrf, campofuente } = cachedTokens);
+    } else {
+      try {
+        const getResp = await fetch(pjUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-AR,es;q=0.9',
+          }
+        });
+        const setCookie = getResp.headers.get('set-cookie') || '';
+        phpsessid = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
+        html = await getResp.text();
+        sess = html.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
+            || html.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
+            || phpsessid;
+        scInit = html.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
+        csrf   = html.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
+        campofuente = html.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
+        
+        if (phpsessid && sess && csrf) {
+          cachedTokens = { phpsessid, sess, scInit, csrf, campofuente };
+          cachedTime = Date.now();
         }
-      });
-      const setCookie = getResp.headers.get('set-cookie') || '';
-      phpsessid = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
-      html = await getResp.text();
-      sess = html.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
-          || html.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
-          || phpsessid;
-      scInit = html.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
-      csrf   = html.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
-      campofuente = html.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
-    } catch(e) {
-      return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
+      } catch(e) {
+        return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
+      }
     }
 
     const formData = new URLSearchParams({
@@ -1160,13 +1174,17 @@ async function calcularTasaRubro(rubroKey){
       int.resultado = res;
       int.periodoResultados = null;
     } else {
-      const periodoResultados = [];
-      for(let i=0;i<periodos.length;i++){
-        const p = periodos[i];
-        if(btn) btn.innerHTML=`<span class="spin"></span> Período ${i+1}/${periodos.length}...`;
+      if(btn) btn.innerHTML=`<span class="spin"></span> Calculando ${periodos.length} períodos...`;
+      const promesas = periodos.map(async (p, i) => {
         const res = await fetchTasaPJ(p.capital, tipoId, isoToDD(p.desde), isoToDD(p.hasta));
-        periodoResultados.push({capital:p.capital,desde:p.desde,hasta:p.hasta,interes:res.interes,tasa:res.tasa,dias:res.dias});
-      }
+        return { capital:p.capital, desde:p.desde, hasta:p.hasta, interes:res.interes, tasa:res.tasa, dias:res.dias, _idx: i };
+      });
+      const resultados = await Promise.all(promesas);
+      resultados.sort((a,b) => a._idx - b._idx);
+      
+      const periodoResultados = resultados.map(r => ({
+        capital: r.capital, desde: r.desde, hasta: r.hasta, interes: r.interes, tasa: r.tasa, dias: r.dias
+      }));
       int.periodoResultados = periodoResultados;
       const totalInteres = periodoResultados.reduce((s,r)=>s+r.interes,0);
       int.resultado = {interes:totalInteres, tasa:'variable (por períodos)', dias:null};
