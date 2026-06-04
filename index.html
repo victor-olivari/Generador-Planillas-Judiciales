@@ -556,6 +556,7 @@ function showToast(msg, tipo='success'){
 // ═══════════════════════════════════════════════════════════════
 const WORKER_CODE = `let cachedTokens = null;
 let cachedTime = 0;
+let tokenPromise = null;
 
 export default {
   async fetch(request, env) {
@@ -669,28 +670,38 @@ export default {
     if(cachedTokens && (Date.now() - cachedTime) < 600000) {
       ({ phpsessid, sess, scInit, csrf, campofuente } = cachedTokens);
     } else {
-      try {
-        const getResp = await fetch(pjUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-AR,es;q=0.9',
+      if(!tokenPromise) {
+        tokenPromise = (async () => {
+          const getResp = await fetch(pjUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'es-AR,es;q=0.9',
+            }
+          });
+          const setCookie = getResp.headers.get('set-cookie') || '';
+          const pSessId = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
+          const h = await getResp.text();
+          const s = h.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
+              || h.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
+              || pSessId;
+          const sci = h.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
+          const c = h.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
+          const cf = h.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
+          
+          if (pSessId && s && c) {
+            cachedTokens = { phpsessid: pSessId, sess: s, scInit: sci, csrf: c, campofuente: cf };
+            cachedTime = Date.now();
+            return cachedTokens;
+          } else {
+            throw new Error("Tokens no encontrados en GET. Snippet: " + h.substring(0, 200));
           }
-        });
-        const setCookie = getResp.headers.get('set-cookie') || '';
-        phpsessid = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
-        html = await getResp.text();
-        sess = html.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
-            || html.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
-            || phpsessid;
-        scInit = html.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
-        csrf   = html.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
-        campofuente = html.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
-        
-        if (phpsessid && sess && csrf) {
-          cachedTokens = { phpsessid, sess, scInit, csrf, campofuente };
-          cachedTime = Date.now();
-        }
+        })().finally(() => { tokenPromise = null; });
+      }
+
+      try {
+        const tokens = await tokenPromise;
+        ({ phpsessid, sess, scInit, csrf, campofuente } = tokens);
       } catch(e) {
         return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
       }
