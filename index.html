@@ -691,7 +691,7 @@ const WORKER_CODE = `export default {
 
     const pjUrl = 'https://www.justiciachaco.gov.ar/views/modules/profesionales/calcula_tasas/' + targetPhp;
     const formData = new URLSearchParams();
-    const imp = (() => { const n = parseFloat(p.importe||'1000'); return isNaN(n)?'1000':n.toFixed(2).replace('.',','); })();
+    const imp = (() => { const n = parseFloat(p.importe||'1000'); return isNaN(n)?'1000':n.toFixed(2); })();
     
     formData.append('importe', imp);
     formData.append('fecha_desde', dDesde);
@@ -700,7 +700,7 @@ const WORKER_CODE = `export default {
     formData.append('descripcion_tipo', descTipo);
     if (idStr === '6') {
       const tp = parseFloat(p.tasa_pactada||'0');
-      formData.append('tasa_pactada', isNaN(tp)?'0':tp.toFixed(2).replace('.',','));
+      formData.append('tasa_pactada', isNaN(tp)?'0':tp.toFixed(2));
     }
 
     try {
