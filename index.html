@@ -659,8 +659,8 @@ const WORKER_CODE = `export default {
       return dStr;
     };
     
-    const dDesde = parseDate(p.desde || '');
-    const dHasta = parseDate(p.hasta || '');
+    const dDesde = parseDate(p.desde || '01-01-2024');
+    const dHasta = parseDate(p.hasta || '31-12-2024');
     const idStr = String(p.id_tipo_tasa || '1');
     
     let targetPhp = 'calcular_tasa_numerica.php';
