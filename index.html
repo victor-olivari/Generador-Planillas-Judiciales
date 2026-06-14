@@ -554,15 +554,11 @@ function showToast(msg, tipo='success'){
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURACIÓN CLOUDFLARE WORKER
 // ═══════════════════════════════════════════════════════════════
-const WORKER_CODE = `let cachedTokens = null;
-let cachedTime = 0;
-let tokenPromise = null;
-
-export default {
+const WORKER_CODE = `export default {
   async fetch(request, env) {
     const cors = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': '*',
     };
     if (request.method === 'OPTIONS') {
@@ -577,7 +573,7 @@ export default {
       if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
       try {
         const body = await request.json();
-        const key = \`planilla_\${Date.now()}_\${Math.random().toString(36).slice(2,6)}\`;
+        const key = \\\`planilla_\\\${Date.now()}_\\\${Math.random().toString(36).slice(2,6)}\\\`;
         const meta = {
           caratula: body.expediente?.caratula||'',
           numero: body.expediente?.numero||'',
@@ -621,157 +617,121 @@ export default {
 
     if(p.accion === 'uma') {
       const umaUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      // Extrae importe argentino del texto crudo del PDF.
-      // El 1° art. de "SE RESUELVE" siempre tiene el formato: ($ 95.626)
       const extraerDePDF = bytes => {
         const txt = new TextDecoder('latin1').decode(bytes);
-        const m = txt.match(/\\(\\s*\\$\\s*([\\d]{2,3}\\.[\\d]{3})\\s*\\)/)
-               || txt.match(/\\$\\s*([\\d]{2,3}\\.[\\d]{3})/);
-        if(m){ const n=parseInt((m[1]||'').replace(/\\./g,'')); if(n>=50000&&n<=5000000) return n; }
+        const m = txt.match(/\\\\(\\\\s*\\\\$\\\\s*([\\\\d]{2,3}\\\\.[\\\\d]{3})\\\\s*\\\\)/)
+               || txt.match(/\\\\$\\\\s*([\\\\d]{2,3}\\\\.[\\\\d]{3})/);
+        if(m){ const n=parseInt((m[1]||'').replace(/\\\\./g,'')); if(n>=50000&&n<=5000000) return n; }
         return null;
       };
       try {
-        // Paso 1: /transparencia/uma → primer link al PDF de la resolución más reciente
         const lr = await fetch('https://www.csjn.gov.ar/transparencia/uma',{headers:{'User-Agent':umaUA,'Accept':'text/html'}});
         const lh = await lr.text();
-        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\d+)[^"]*)"/i)
-                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i);
+        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\\\d+)[^"]*)"/i)
+                || lh.match(/href="([^"]*\\\\/documentos\\\\/[^"]*[?&]ID=(\\\\d+)[^"]*)"/i);
         if(dm){
           const du = dm[1].startsWith('http')?dm[1]:'https://www.csjn.gov.ar'+dm[1];
-          // Paso 2: descargar PDF y buscar "($ XX.XXX)" en el texto crudo
           const pr = await fetch(du,{headers:{'User-Agent':umaUA,'Accept':'application/pdf,*/*'}});
           const buf = await pr.arrayBuffer();
           const v = extraerDePDF(buf);
           if(v){
-            // Guardar en KV para que el fallback siempre tenga el último valor real
-            if(env&&env.KV_HISTORY){
-              try{ await env.KV_HISTORY.put('uma_vigente',JSON.stringify({valor:v,fecha:new Date().toISOString()}),{expirationTtl:7776000}); }catch(e){}
-            }
-            return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=21600'}});
+            if(env&&env.KV_HISTORY) try{ await env.KV_HISTORY.put('uma_vigente',JSON.stringify({valor:v,fecha:new Date().toISOString()}),{expirationTtl:7776000}); }catch(e){}
+            return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{...cors,'Cache-Control':'max-age=21600'}});
           }
         }
       } catch(e){}
-      // Fallback 1: último valor exitoso guardado en KV (se auto-actualiza con cada scrape)
       if(env&&env.KV_HISTORY){
         try{
           const kv=await env.KV_HISTORY.get('uma_vigente',{type:'json'});
-          if(kv&&kv.valor>50000) return Response.json({valor:kv.valor,ok:true,fuente:'kv-cache'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=3600'}});
+          if(kv&&kv.valor>50000) return Response.json({valor:kv.valor,ok:true,fuente:'kv-cache'},{headers:{...cors,'Cache-Control':'max-age=3600'}});
         }catch(e){}
       }
-      // Fallback 2: valor de base conocido (solo si KV tampoco responde)
-      return Response.json({valor:95626,ok:true,fuente:'default'},{headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'max-age=86400'}});
+      return Response.json({valor:95626,ok:true,fuente:'default'},{headers:{...cors,'Cache-Control':'max-age=86400'}});
     }
 
-    const pjUrl = 'https://www.justiciachaco.gov.ar/sistemas/calcula_tasas/calculadora_v2/';
-
-    let html = '', phpsessid = '', sess = '', scInit = '', csrf = '', campofuente = '';
+    // ── NUEVO CÁLCULO DE TASAS PJ CHACO ──
+    const parseDate = (dStr) => {
+      if(dStr.includes('-')) {
+        const parts = dStr.split('-');
+        if(parts[0].length === 4) return dStr; // YYYY-MM-DD
+        if(parts.length === 3) return \\\`\\\${parts[2]}-\\\${parts[1]}-\\\${parts[0]}\\\`;
+      }
+      return dStr;
+    };
     
-    // Usar tokens cacheados si tienen menos de 10 minutos
-    if(cachedTokens && (Date.now() - cachedTime) < 600000) {
-      ({ phpsessid, sess, scInit, csrf, campofuente } = cachedTokens);
+    const dDesde = parseDate(p.desde || '');
+    const dHasta = parseDate(p.hasta || '');
+    const idStr = String(p.id_tipo_tasa || '1');
+    
+    let targetPhp = 'calcular_tasa_numerica.php';
+    let descTipo = '';
+    
+    if (idStr === '6') {
+      targetPhp = 'calcular_tasa_pactada.php'; descTipo = 'PACTADA';
+    } else if (idStr === '1') {
+      targetPhp = 'calcular_tasa_pasiva.php'; descTipo = 'T. PASIVA USO JUSTICIA BCRA';
+    } else if (idStr === '15') {
+      targetPhp = 'calcular_tasa_tim.php'; descTipo = 'T. INTERESES MORATORIOS (TIM) BCRA';
+    } else if (idStr === '14') {
+      targetPhp = 'calcular_tasa_alimentos.php'; descTipo = 'T. ALIMENTOS ART.552 CCCN BCRA + T.A. BNA';
+    } else if (idStr === '7') {
+      targetPhp = 'calcular_tasa_activa_15.php'; descTipo = 'T. ACTIVA 30 DIAS BNA X 1,5';
+    } else if (idStr === '2') {
+      targetPhp = 'calcular_tasa_activa.php'; descTipo = 'T. ACTIVA 30 DIAS BNA';
     } else {
-      if(!tokenPromise) {
-        tokenPromise = (async () => {
-          const getResp = await fetch(pjUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'es-AR,es;q=0.9',
-            }
-          });
-          const setCookie = getResp.headers.get('set-cookie') || '';
-          const pSessId = setCookie.match(/PHPSESSID=([^;]+)/)?.[1] || '';
-          const h = await getResp.text();
-          const s = h.match(/name="script_case_session"[^>]*value="([^"]+)"/)?.[1]
-              || h.match(/script_case_session[^>]*value="([^"]+)"/)?.[1]
-              || pSessId;
-          const sci = h.match(/name="script_case_init"[^>]*value="([^"]+)"/)?.[1] || '';
-          const c = h.match(/name="csrf_token"[^>]*value="([^"]+)"/)?.[1] || '';
-          const cf = h.match(/name="campofuente"[^>]*value="([^"]*)"/)?.[1] || '';
-          
-          if (pSessId && s && c) {
-            cachedTokens = { phpsessid: pSessId, sess: s, scInit: sci, csrf: c, campofuente: cf };
-            cachedTime = Date.now();
-            return cachedTokens;
-          } else {
-            throw new Error("Tokens no encontrados en GET. Snippet: " + h.substring(0, 200));
-          }
-        })().finally(() => { tokenPromise = null; });
-      }
-
-      try {
-        const tokens = await tokenPromise;
-        ({ phpsessid, sess, scInit, csrf, campofuente } = tokens);
-      } catch(e) {
-        return Response.json({ error: 'GET fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
-      }
+      targetPhp = 'calcular_tasa_numerica.php';
+      if(idStr === '13') descTipo = '06%';
+      else if(idStr === '10') descTipo = '08%';
+      else if(idStr === '3') descTipo = '24%';
+      else if(idStr === '4') descTipo = '32%';
+      else if(idStr === '5') descTipo = '36%';
+      else if(idStr === '9') descTipo = '48%';
+      else if(idStr === '11') descTipo = '56%';
     }
 
-    const formData = new URLSearchParams({
-      importe: (() => { const n = parseFloat(p.importe||'1000'); return isNaN(n)?'1000':n.toFixed(2).replace('.',','); })(),
-      id_tipo_tasa: p.id_tipo_tasa || '1',
-      desde: p.desde || '01-01-2024',
-      hasta: p.hasta || '31-12-2024',
-      tasa_pactada: p.tasa_pactada || '0',
-      resultados: '',
-      nmgp_opcao: 'alterar',
-      nm_form_submit: '1',
-      nmgp_parms: '',
-      nmgp_url_saida: '',
-      nmgp_ancora: '',
-      nmgp_num_form: '',
-      script_case_session: sess,
-      script_case_init: scInit,
-      csrf_token: csrf,
-      campofuente: campofuente,
-      bok: 'OK',
-    });
+    const pjUrl = 'https://www.justiciachaco.gov.ar/views/modules/profesionales/calcula_tasas/' + targetPhp;
+    const formData = new URLSearchParams();
+    const imp = (() => { const n = parseFloat(p.importe||'1000'); return isNaN(n)?'1000':n.toFixed(2).replace('.',','); })();
+    
+    formData.append('importe', imp);
+    formData.append('fecha_desde', dDesde);
+    formData.append('fecha_hasta', dHasta);
+    formData.append('id_tipo_tasa', idStr);
+    formData.append('descripcion_tipo', descTipo);
+    if (idStr === '6') {
+      const tp = parseFloat(p.tasa_pactada||'0');
+      formData.append('tasa_pactada', isNaN(tp)?'0':tp.toFixed(2).replace('.',','));
+    }
 
-    let resultHtml = '';
     try {
       const postResp = await fetch(pjUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Cookie': \`PHPSESSID=\${phpsessid || sess}\`,
-          'Referer': pjUrl,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'es-AR,es;q=0.9',
-          'Origin': 'https://www.justiciachaco.gov.ar',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
         },
-        body: formData.toString(),
+        body: formData.toString()
       });
-      resultHtml = await postResp.text();
-    } catch(e) {
-      return Response.json({ error: 'POST fallido: ' + e.message }, { headers: { 'Access-Control-Allow-Origin': '*' }});
-    }
-
-    const taMatch = resultHtml.match(/<textarea[^>]*name="resultados"[^>]*>([\\s\\S]*?)<\\/textarea>/i);
-    const resultText = taMatch?.[1]?.trim() || '';
-    const interesMatch = resultText.match(/Intereses:\\s*\\$([0-9.,]+)/);
-    const tasaMatch = resultText.match(/Tasa:\\s*([0-9.,]+)%/);
-    const diasMatch = resultText.match(/D.as del Per.odo calculado:\\s*([0-9]+)/);
-
-    if (!interesMatch) {
+      
+      const jsonRes = await postResp.json();
+      if (!jsonRes || !jsonRes.success) {
+        return Response.json({ error: jsonRes?.error || 'Error del servidor PJ', debug: JSON.stringify(jsonRes||{}) }, { headers: cors });
+      }
+      
+      const intStr = jsonRes.interes || '0';
+      const intVal = parseFloat(intStr.replace(/\\\\./g, '').replace(',', '.'));
+      
       return Response.json({
-        error: 'Sin resultado',
-        sess: sess ? 'ok' : 'vacio',
-        csrf: csrf ? 'ok' : 'vacio',
-        scInit: scInit ? 'ok' : 'vacio',
-        resultText: resultText.substring(0, 200),
-        htmlSnippet: resultHtml.substring(0, 500),
-      }, { headers: { 'Access-Control-Allow-Origin': '*' }});
-    }
+        interes: intVal,
+        tasa: jsonRes.tasa_periodo || jsonRes.tasa || null,
+        dias: jsonRes.dias ? parseInt(jsonRes.dias) : null
+      }, { headers: cors });
 
-    const interes = parseFloat(interesMatch[1].replace(/\\./g, '').replace(',', '.'));
-    return Response.json({
-      interes,
-      tasa: tasaMatch ? tasaMatch[1] + '%' : null,
-      dias: diasMatch ? parseInt(diasMatch[1]) : null,
-    }, { headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' }});
+    } catch(e) {
+      return Response.json({ error: 'Fallo al conectar con el PJ: ' + e.message }, { headers: cors });
+    }
   }
-};`;
+};\`;;
 
 function getWorkerUrl(){
   return localStorage.getItem('pjWorkerUrl')||'';
