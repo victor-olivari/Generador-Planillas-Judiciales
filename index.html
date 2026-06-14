@@ -573,7 +573,7 @@ const WORKER_CODE = `export default {
       if(!env||!env.KV_HISTORY) return Response.json({error:'KV no configurado'},{headers:cors});
       try {
         const body = await request.json();
-        const key = \\\`planilla_\\\${Date.now()}_\\\${Math.random().toString(36).slice(2,6)}\\\`;
+        const key = \`planilla_\${Date.now()}_\${Math.random().toString(36).slice(2,6)}\`;
         const meta = {
           caratula: body.expediente?.caratula||'',
           numero: body.expediente?.numero||'',
@@ -619,16 +619,16 @@ const WORKER_CODE = `export default {
       const umaUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
       const extraerDePDF = bytes => {
         const txt = new TextDecoder('latin1').decode(bytes);
-        const m = txt.match(/\\\\(\\\\s*\\\\$\\\\s*([\\\\d]{2,3}\\\\.[\\\\d]{3})\\\\s*\\\\)/)
-               || txt.match(/\\\\$\\\\s*([\\\\d]{2,3}\\\\.[\\\\d]{3})/);
-        if(m){ const n=parseInt((m[1]||'').replace(/\\\\./g,'')); if(n>=50000&&n<=5000000) return n; }
+        const m = txt.match(/\\(\\s*\\$\\s*([\\d]{2,3}\\.[\\d]{3})\\s*\\)/)
+               || txt.match(/\\$\\s*([\\d]{2,3}\\.[\\d]{3})/);
+        if(m){ const n=parseInt((m[1]||'').replace(/\\./g,'')); if(n>=50000&&n<=5000000) return n; }
         return null;
       };
       try {
         const lr = await fetch('https://www.csjn.gov.ar/transparencia/uma',{headers:{'User-Agent':umaUA,'Accept':'text/html'}});
         const lh = await lr.text();
-        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\\\d+)[^"]*)"/i)
-                || lh.match(/href="([^"]*\\\\/documentos\\\\/[^"]*[?&]ID=(\\\\d+)[^"]*)"/i);
+        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\d+)[^"]*)"/i)
+                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i);
         if(dm){
           const du = dm[1].startsWith('http')?dm[1]:'https://www.csjn.gov.ar'+dm[1];
           const pr = await fetch(du,{headers:{'User-Agent':umaUA,'Accept':'application/pdf,*/*'}});
@@ -654,7 +654,7 @@ const WORKER_CODE = `export default {
       if(dStr.includes('-')) {
         const parts = dStr.split('-');
         if(parts[0].length === 4) return dStr; // YYYY-MM-DD
-        if(parts.length === 3) return \\\`\\\${parts[2]}-\\\${parts[1]}-\\\${parts[0]}\\\`;
+        if(parts.length === 3) return \`\${parts[2]}-\${parts[1]}-\${parts[0]}\`;
       }
       return dStr;
     };
@@ -719,7 +719,7 @@ const WORKER_CODE = `export default {
       }
       
       const intStr = jsonRes.interes || '0';
-      const intVal = parseFloat(intStr.replace(/\\\\./g, '').replace(',', '.'));
+      const intVal = parseFloat(intStr.replace(/\\./g, '').replace(',', '.'));
       
       return Response.json({
         interes: intVal,
@@ -731,7 +731,7 @@ const WORKER_CODE = `export default {
       return Response.json({ error: 'Fallo al conectar con el PJ: ' + e.message }, { headers: cors });
     }
   }
-};\`;;
+};`;
 
 function getWorkerUrl(){
   return localStorage.getItem('pjWorkerUrl')||'';
