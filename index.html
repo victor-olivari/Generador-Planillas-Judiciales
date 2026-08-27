@@ -616,37 +616,33 @@ const WORKER_CODE = `export default {
     }
 
     if(p.accion === 'uma') {
-      const umaUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      const extraerDePDF = bytes => {
-        const txt = new TextDecoder('latin1').decode(bytes);
-        const m = txt.match(/\\(\\s*\\$\\s*([\\d]{2,3}\\.[\\d]{3})\\s*\\)/)
-               || txt.match(/\\$\\s*([\\d]{2,3}\\.[\\d]{3})/);
-        if(m){ const n=parseInt((m[1]||'').replace(/\\./g,'')); if(n>=50000&&n<=5000000) return n; }
-        return null;
-      };
-      try {
-        const lr = await fetch('https://www.csjn.gov.ar/transparencia/uma',{headers:{'User-Agent':umaUA,'Accept':'text/html'}});
-        const lh = await lr.text();
-        const dm = lh.match(/href="([^"]*descargar[^"]*[?&]ID=(\\d+)[^"]*)"/i)
-                || lh.match(/href="([^"]*\\/documentos\\/[^"]*[?&]ID=(\\d+)[^"]*)"/i);
-        if(dm){
-          const du = dm[1].startsWith('http')?dm[1]:'https://www.csjn.gov.ar'+dm[1];
-          const pr = await fetch(du,{headers:{'User-Agent':umaUA,'Accept':'application/pdf,*/*'}});
-          const buf = await pr.arrayBuffer();
-          const v = extraerDePDF(buf);
-          if(v){
-            if(env&&env.KV_HISTORY) try{ await env.KV_HISTORY.put('uma_vigente',JSON.stringify({valor:v,fecha:new Date().toISOString()}),{expirationTtl:7776000}); }catch(e){}
-            return Response.json({valor:v,ok:true,fuente:'csjn-pdf'},{headers:{...cors,'Cache-Control':'max-age=21600'}});
+      // La CSJN arma su listado por JavaScript y el importe vive dentro de un PDF
+      // comprimido: no se puede raspar la página. Se usa uma-data.json, que una
+      // GitHub Action regenera a diario leyendo la resolución SGA de la CSJN.
+      const UMA_URLS = [
+        'https://raw.githubusercontent.com/victor-olivari/cotizador-honorarios-abogacia-chaco/main/uma-data.json',
+        'https://cdn.jsdelivr.net/gh/victor-olivari/cotizador-honorarios-abogacia-chaco@main/uma-data.json'
+      ];
+      for(const u of UMA_URLS){
+        try{
+          const r = await fetch(u, {cf:{cacheTtl:3600, cacheEverything:true}});
+          if(!r.ok) continue;
+          const d = await r.json();
+          const v = Math.round(Number(d.valor));
+          if(v>=50000 && v<=5000000){
+            const out = {valor:v, res:d.res||null, vig:d.vig||null, ok:true, fuente:'csjn'};
+            if(env&&env.KV_HISTORY) try{ await env.KV_HISTORY.put('uma_vigente',JSON.stringify(out),{expirationTtl:7776000}); }catch(e){}
+            return Response.json(out,{headers:{...cors,'Cache-Control':'max-age=21600'}});
           }
-        }
-      } catch(e){}
+        }catch(e){}
+      }
       if(env&&env.KV_HISTORY){
         try{
           const kv=await env.KV_HISTORY.get('uma_vigente',{type:'json'});
-          if(kv&&kv.valor>50000) return Response.json({valor:kv.valor,ok:true,fuente:'kv-cache'},{headers:{...cors,'Cache-Control':'max-age=3600'}});
+          if(kv&&kv.valor>50000) return Response.json({...kv,ok:true,fuente:'kv-cache'},{headers:{...cors,'Cache-Control':'max-age=3600'}});
         }catch(e){}
       }
-      return Response.json({valor:95626,ok:true,fuente:'default'},{headers:{...cors,'Cache-Control':'max-age=86400'}});
+      return Response.json({valor:104220,res:'Res. SGA N° 1930/2026',vig:'primero de julio de 2026',ok:true,fuente:'default'},{headers:{...cors,'Cache-Control':'max-age=86400'}});
     }
 
     // ── NUEVO CÁLCULO DE TASAS PJ CHACO ──
@@ -1216,7 +1212,7 @@ function renderHonorarios(){
             <button class="btn btn-outline-secondary btn-sm" onclick="STATE.honorarios[${i}].usaUMA=false;renderHonorarios();recalcular()">
               <i class="bi bi-currency-dollar me-1"></i>En Pesos ($)
             </button>
-            <button class="btn btn-info btn-sm text-dark" onclick="STATE.honorarios[${i}].usaUMA=true;STATE.honorarios[${i}].valorUMA=getUMAVigente();renderHonorarios();recalcular()">
+            <button class="btn btn-info btn-sm text-dark" onclick="activarUMA('honor',${i})">
               <i class="bi bi-layers me-1"></i>En UMA
             </button>
           </div>
@@ -1268,7 +1264,7 @@ function renderHonorarios(){
             <button class="btn btn-outline-secondary" id="btnUMA_${i}" title="Actualizar UMA desde CSJN"
               onclick="actualizarUMAHonorario(${i})"><i class="bi bi-arrow-clockwise"></i></button>
           </div>
-          ${h.valorUMAFecha?`<div class="fs-label" style="font-size:.65rem">Al ${fmtFecha(h.valorUMAFecha)}</div>`:''}
+          ${umaHint(h.valorUMA, h.valorUMAFecha, 'actualizarUMAHonorario('+i+')')}
         </div>
         <div class="col-md-2 d-flex align-items-end pb-1">
           ${pesoEquiv?`<span class="text-muted small">${h.cantUMA} UMA = <strong>${pesoEquiv}</strong></span>`:''}
@@ -1326,30 +1322,6 @@ function agregarGastoDoc(){
   renderGastosDoc();
 }
 
-async function actualizarUMAGastoDoc(i){
-  const btn = document.getElementById('btnUMAGDoc_'+i);
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>';}
-  const valor = await fetchUMAFromWorker();
-  STATE.gastosDoc[i].valorUMA = valor;
-  STATE.gastosDoc[i].valorUMAFecha = new Date().toISOString().split('T')[0];
-  if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-arrow-clockwise"></i>';}
-  renderGastosDoc();
-  recalcular();
-  showToast(`UMA actualizada: ${fmt(valor)}`, 'success');
-}
-
-async function actualizarUMAGastoNoDoc(){
-  const btn = document.getElementById('btnUMAGNoDoc');
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>';}
-  const valor = await fetchUMAFromWorker();
-  STATE.gastosNoDoc.valorUMA = valor;
-  STATE.gastosNoDoc.valorUMAFecha = new Date().toISOString().split('T')[0];
-  if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-arrow-clockwise"></i>';}
-  renderGastosNoDoc();
-  recalcular();
-  showToast(`UMA actualizada: ${fmt(valor)}`, 'success');
-}
-
 function renderGastosDoc(){
   let html='';
   if(STATE.gastosDoc.length===0){html='<p class="text-muted small">Sin gastos documentados cargados.</p>';}
@@ -1391,7 +1363,7 @@ function renderGastosDoc(){
             <button class="btn btn-outline-secondary btn-sm" onclick="STATE.gastosDoc[${i}].usaUMA=false;renderGastosDoc();recalcular()">
               <i class="bi bi-currency-dollar me-1"></i>En Pesos ($)
             </button>
-            <button class="btn btn-info btn-sm text-dark" onclick="STATE.gastosDoc[${i}].usaUMA=true;STATE.gastosDoc[${i}].valorUMA=getUMAVigente();renderGastosDoc();recalcular()">
+            <button class="btn btn-info btn-sm text-dark" onclick="activarUMA('gdoc',${i})">
               <i class="bi bi-layers me-1"></i>En UMA
             </button>
           </div>
@@ -1437,7 +1409,7 @@ function renderGastosDoc(){
             <button class="btn btn-outline-secondary" id="btnUMAGDoc_${i}" title="Actualizar UMA desde CSJN"
               onclick="actualizarUMAGastoDoc(${i})"><i class="bi bi-arrow-clockwise"></i></button>
           </div>
-          ${g.valorUMAFecha?`<div class="fs-label" style="font-size:.65rem">Al ${fmtFecha(g.valorUMAFecha)}</div>`:''}
+          ${umaHint(g.valorUMA, g.valorUMAFecha, 'actualizarUMAGastoDoc('+i+')')}
         </div>
         <div class="col-md-2 d-flex align-items-end pb-1">
           ${pesoEquivG?`<span class="text-muted small">${g.cantUMA} UMA = <strong>${pesoEquivG}</strong></span>`:''}
@@ -1507,7 +1479,7 @@ function renderGastosNoDoc(){
           <button class="btn btn-outline-secondary btn-sm" onclick="STATE.gastosNoDoc.usaUMA=false;renderGastosNoDoc();recalcular()">
             <i class="bi bi-currency-dollar me-1"></i>En Pesos ($)
           </button>
-          <button class="btn btn-info btn-sm text-dark" onclick="STATE.gastosNoDoc.usaUMA=true;STATE.gastosNoDoc.valorUMA=getUMAVigente();renderGastosNoDoc();recalcular()">
+          <button class="btn btn-info btn-sm text-dark" onclick="activarUMA('gnodoc')">
             <i class="bi bi-layers me-1"></i>En UMA
           </button>
         </div>
@@ -1536,7 +1508,7 @@ function renderGastosNoDoc(){
             <button class="btn btn-outline-secondary" id="btnUMAGNoDoc" title="Actualizar UMA desde CSJN"
               onclick="actualizarUMAGastoNoDoc()"><i class="bi bi-arrow-clockwise"></i></button>
           </div>
-          ${g.valorUMAFecha?`<div class="fs-label" style="font-size:.65rem">Al ${fmtFecha(g.valorUMAFecha)}</div>`:''}
+          ${umaHint(g.valorUMA, g.valorUMAFecha, 'actualizarUMAGastoNoDoc()')}
         </div>
         <div class="col-md-2 d-flex align-items-end pb-1">
           ${pesoEquivGnd?`<span class="text-muted small">${g.cantUMA} UMA = <strong>${pesoEquivGnd}</strong></span>`:''}
@@ -1698,47 +1670,189 @@ function getInteresConPeriodos(int, monto, pagos, rubroKey){
 
 // ═══════════════════════════════════════════════════════════════
 // UMA — UNIDAD DE MEDIDA ARANCELARIA (Ley 4228-C, Chaco)
+// ---------------------------------------------------------------
+// La CSJN publica el valor todos los meses, pero NO se puede leer
+// directamente desde el navegador: la página csjn.gov.ar/transparencia/uma
+// arma el listado por JavaScript (el HTML no trae el valor) y el importe
+// sólo figura dentro del PDF de la resolución, que viene comprimido.
+// Por eso el raspado directo quedaba siempre en el valor fijo del código.
+//
+// Cadena de fuentes, de más a menos confiable:
+//   1) uma-data.json del repositorio del "Cotizador de honorarios Ley 4228".
+//      Una GitHub Action lo regenera todos los días leyendo la última
+//      resolución de la CSJN. Se sirve por CDN con CORS abierto, así que
+//      funciona incluso abriendo este archivo con file://. Es la misma
+//      fuente que usa el Cotizador: los dos sistemas muestran siempre el
+//      mismo valor, que es lo que corresponde para una liquidación.
+//   2) Espejo del mismo archivo en jsDelivr (otra red, por si GitHub está
+//      bloqueado o caído).
+//   3) Cloudflare Worker propio (?accion=uma), si está configurado.
+//   4) Último valor conocido, fijo acá abajo.
 // ═══════════════════════════════════════════════════════════════
-const UMA_DEFAULT_VALOR = 95626;  // $95.626 — CSJN Res.SGA N° 1076/2026 (desde 01/03/2026)
-const UMA_DEFAULT_FECHA = '2026-03-01';
-const UMA_CACHE_KEY = 'uma_valor_cache';
+const UMA_DEFAULT_VALOR = 104220;                 // CSJN Res. SGA N° 1930/2026
+const UMA_DEFAULT_FECHA = '2026-07-01';
+const UMA_DEFAULT_RES   = 'Res. SGA N° 1930/2026';
+const UMA_DEFAULT_VIG   = '1° de julio de 2026';
+const UMA_REPO = 'victor-olivari/cotizador-honorarios-abogacia-chaco';
+const UMA_JSON_URLS = [
+  'https://raw.githubusercontent.com/' + UMA_REPO + '/main/uma-data.json',
+  'https://cdn.jsdelivr.net/gh/' + UMA_REPO + '@main/uma-data.json'
+];
+const UMA_CACHE_KEY = 'uma_valor_cache_v2';
+const UMA_TTL = 12*60*60*1000;      // 12 h — la UMA cambia una vez por mes
+const UMA_MIN = 50000, UMA_MAX = 5000000;
 
-function getUMAVigente(){
-  try {
+// El PDF de la CSJN dice "a partir del primero de julio": lo normalizamos.
+const fmtVigUMA = v => String(v||'').replace(/^primero\s+de\s+/i, '1° de ');
+
+function umaLeerCache(){
+  try{
     const c = JSON.parse(localStorage.getItem(UMA_CACHE_KEY)||'{}');
-    // Descartar caché si el valor es el anterior ($92.482 o menor)
-    if(c.valor && c.ts && c.valor > 92482 && (Date.now()-c.ts < 86400000)) return c.valor;
-  } catch(e){}
-  return UMA_DEFAULT_VALOR;
+    if(c && c.ts && c.valor >= UMA_MIN && c.valor <= UMA_MAX) return c;
+  }catch(e){}
+  return null;
 }
 
-async function fetchUMAFromWorker(){
-  const wurl = localStorage.getItem('pjWorkerUrl');
-  if(!wurl) return UMA_DEFAULT_VALOR;
-  try {
-    const r = await fetch(wurl + '?accion=uma');
-    const d = await r.json();
-    // Rechazar valores menores al default conocido (evita que worker desactualizado pise el valor correcto)
-    if(d.ok && d.valor >= UMA_DEFAULT_VALOR) {
-      localStorage.setItem(UMA_CACHE_KEY, JSON.stringify({valor:d.valor, ts:Date.now(), fuente:d.fuente||''}));
-      return d.valor;
+function umaGuardarCache(o){
+  try{
+    localStorage.setItem(UMA_CACHE_KEY, JSON.stringify({
+      valor:o.valor, res:o.res, vig:o.vig, fuente:o.fuente, ts:Date.now()
+    }));
+  }catch(e){}
+}
+
+// Valor a usar en el acto, sin esperar la red: caché o último valor conocido.
+// Nunca devuelve algo anterior al valor fijo del código.
+function getUMAInfo(){
+  const c = umaLeerCache();
+  if(c && c.valor >= UMA_DEFAULT_VALOR) return c;
+  return {valor:UMA_DEFAULT_VALOR, res:UMA_DEFAULT_RES, vig:UMA_DEFAULT_VIG, fuente:'fijo', ts:0};
+}
+function getUMAVigente(){ return getUMAInfo().valor; }
+function umaCacheFresca(){
+  const c = umaLeerCache();
+  return !!(c && c.valor >= UMA_DEFAULT_VALOR && (Date.now()-c.ts) < UMA_TTL);
+}
+
+async function fetchUMADesdeJSON(url){
+  const r = await fetch(url, {cache:'no-cache'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d = await r.json();
+  const v = Math.round(Number(d.valor));
+  if(!(v >= UMA_MIN && v <= UMA_MAX)) throw new Error('Valor fuera de rango: '+d.valor);
+  return {valor:v, res:d.res||UMA_DEFAULT_RES, vig:fmtVigUMA(d.vig||UMA_DEFAULT_VIG), fuente:'csjn'};
+}
+
+async function fetchUMADesdeWorker(){
+  const wurl = getWorkerUrl();
+  if(!wurl) throw new Error('Worker no configurado');
+  const r = await fetch(wurl + '?accion=uma');
+  const d = await r.json();
+  const v = Math.round(Number(d.valor));
+  if(!(d.ok && v >= UMA_MIN && v <= UMA_MAX)) throw new Error('Respuesta inválida del Worker');
+  return {valor:v, res:d.res||UMA_DEFAULT_RES, vig:fmtVigUMA(d.vig||UMA_DEFAULT_VIG), fuente:d.fuente||'worker'};
+}
+
+let UMA_FETCH_ENCURSO = null;
+
+// Consulta el valor vigente. Nunca lanza: si todo falla devuelve lo que ya
+// teníamos. Con caché fresca (< 12 h) no toca la red, salvo forzar:true.
+async function refrescarUMA(opts){
+  const forzar = !!(opts && opts.forzar);
+  if(!forzar && umaCacheFresca()) return getUMAInfo();
+  if(UMA_FETCH_ENCURSO) return UMA_FETCH_ENCURSO;
+  UMA_FETCH_ENCURSO = (async () => {
+    const previo = getUMAInfo();
+    for(const url of UMA_JSON_URLS){
+      try{
+        const info = await fetchUMADesdeJSON(url);
+        umaGuardarCache(info);
+        return Object.assign({}, info, {ts:Date.now()});
+      }catch(e){}
     }
-  } catch(e){}
-  return UMA_DEFAULT_VALOR;
+    try{
+      const info = await fetchUMADesdeWorker();
+      // El Worker tiene su propio valor de respaldo: sólo lo tomamos si no retrocede.
+      if(info.valor >= previo.valor){
+        umaGuardarCache(info);
+        return Object.assign({}, info, {ts:Date.now()});
+      }
+    }catch(e){}
+    return previo;
+  })();
+  try { return await UMA_FETCH_ENCURSO; } finally { UMA_FETCH_ENCURSO = null; }
 }
 
-async function actualizarUMAHonorario(idx){
-  const btnId = 'btnUMA_'+idx;
-  const btn = document.getElementById(btnId);
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>';}
-  const valor = await fetchUMAFromWorker();
-  STATE.honorarios[idx].valorUMA = valor;
-  STATE.honorarios[idx].valorUMAFecha = new Date().toISOString().split('T')[0];
-  if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-arrow-clockwise"></i>';}
-  renderHonorarios();
-  recalcular();
-  showToast(`UMA actualizada: ${fmt(valor)}`, 'success');
+// Línea de estado debajo del campo "Valor UMA ($)".
+function umaHint(valorItem, fechaItem, accion){
+  const info = getUMAInfo();
+  const v = Math.round(valorItem||0);
+  const al = fechaItem ? ' · al '+fmtFecha(fechaItem) : '';
+  const tit = info.res+' — vigente desde '+info.vig;
+  if(v === info.valor){
+    return '<div class="fs-label" style="font-size:.65rem;color:#2e7d32" title="'+tit+'">'
+         + '<i class="bi bi-check-circle"></i> UMA vigente'+al+'</div>';
+  }
+  return '<div class="fs-label" style="font-size:.65rem;color:#b26a00" title="'+tit+'">'
+       + '<i class="bi bi-exclamation-triangle"></i> Vigente hoy: '+fmt(info.valor)+' '
+       + '<a href="#" style="color:#b26a00" onclick="event.preventDefault();'+accion+'">actualizar</a></div>';
 }
+
+function umaContenedor(tipo, i){
+  return tipo==='honor' ? STATE.honorarios[i]
+       : tipo==='gdoc'  ? STATE.gastosDoc[i]
+       : STATE.gastosNoDoc;
+}
+function umaRender(tipo){
+  return tipo==='honor' ? renderHonorarios
+       : tipo==='gdoc'  ? renderGastosDoc
+       : renderGastosNoDoc;
+}
+
+// Al elegir "En UMA" se carga el último valor conocido en el acto (para que la
+// pantalla no quede en blanco) y, en paralelo, se consulta el valor vigente a
+// la CSJN y se corrige el ítem si cambió.
+async function activarUMA(tipo, i){
+  const cont = umaContenedor(tipo, i);
+  if(!cont) return;
+  const render = umaRender(tipo);
+  cont.usaUMA = true;
+  cont.valorUMA = getUMAVigente();
+  cont.valorUMAFecha = new Date().toISOString().split('T')[0];
+  render(); recalcular();
+  const info = await refrescarUMA();
+  if(cont.usaUMA === true && info.valor !== cont.valorUMA){
+    cont.valorUMA = info.valor;
+    cont.valorUMAFecha = new Date().toISOString().split('T')[0];
+    render(); recalcular();
+    showToast('UMA actualizada desde la CSJN: '+fmt(info.valor)+' — '+info.res, 'success');
+  }
+}
+
+// Botón ↻ de cada ítem: fuerza la consulta aunque la caché esté fresca.
+async function actualizarUMAItem(tipo, i){
+  const cont = umaContenedor(tipo, i);
+  if(!cont) return;
+  const render = umaRender(tipo);
+  const btnId = tipo==='honor' ? 'btnUMA_'+i : tipo==='gdoc' ? 'btnUMAGDoc_'+i : 'btnUMAGNoDoc';
+  const btn = document.getElementById(btnId);
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>'; }
+  const info = await refrescarUMA({forzar:true});
+  cont.valorUMA = info.valor;
+  cont.valorUMAFecha = new Date().toISOString().split('T')[0];
+  if(btn){ btn.disabled=false; btn.innerHTML='<i class="bi bi-arrow-clockwise"></i>'; }
+  render(); recalcular();
+  if(info.fuente === 'fijo'){
+    showToast('Sin conexión con la fuente — se mantiene el último valor conocido: '+fmt(info.valor), 'warning');
+  } else {
+    showToast('UMA '+fmt(info.valor)+' — '+info.res+', vigente desde '+info.vig, 'success');
+  }
+}
+
+// Nombres que ya usaban los botones de la interfaz
+const actualizarUMAHonorario  = i => actualizarUMAItem('honor', i);
+const actualizarUMAGastoDoc   = i => actualizarUMAItem('gdoc', i);
+const actualizarUMAGastoNoDoc = () => actualizarUMAItem('gnodoc');
 
 // Calcula intereses UMA período por período.
 // Cada pago reduce UMAs: umasActuales -= p.monto / (p.valorUMAalPago || valorUMA)
@@ -3034,6 +3148,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   // Render inicial
   renderTodo();
+  // Deja la UMA al día en segundo plano (no bloquea la carga de la planilla)
+  const umaPrevia = getUMAVigente();
+  refrescarUMA().then(info => { if(info.valor !== umaPrevia) renderTodo(); });
 });
 </script>
 </body>
