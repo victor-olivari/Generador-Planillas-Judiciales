@@ -381,9 +381,9 @@ function fmtTasaExport(tipoTasa, tasaPct, resultStr, hideAb=false){
   const ab = hideAb ? '' : (TASA_ABREV[tipoTasa]||'');
   const tna = getTNAFija(tipoTasa, tasaPct);
   let pct;
-  if(resultStr){ const n=parseFloat(resultStr); pct=!isNaN(n)?n.toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':resultStr; }
-  else { pct=tna!==null?(tna*100).toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4})+'%':''; }
-  return `<span style="font-size:.72rem;font-weight:600">${pct}</span>${ab?`<br><span style="font-size:.6rem;color:#444">${ab}</span>`:''}`;
+  if(resultStr){ const n=parseFloat(resultStr); pct=!isNaN(n)?n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':resultStr; }
+  else { pct=tna!==null?(tna*100).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':''; }
+  return `<span style="font-size:.68rem;font-weight:400">${pct}</span>${ab?`<br><span style="font-size:.6rem;color:#444">${ab}</span>`:''}`;
 }
 function fmtTasaXL(tipoTasa, tasaPct, resultStr, hideAb=false){
   const ab = hideAb ? '' : (TASA_ABREV[tipoTasa]||'');
@@ -2369,7 +2369,7 @@ async function duplicarHistorialRemota(kvId){
 // ═══════════════════════════════════════════════════════════════
 function buildHeader(d){
   const e=d.expediente;
-  return `<div style="font-family:Arial,sans-serif;max-width:168mm;margin:0 auto;background:#fff;padding:7px 12px;">
+  return `<div style="font-family:Arial,sans-serif;max-width:168mm;margin:0 auto;background:#fff;padding:7px 5px;">
     <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #4A97A3;padding-bottom:5px;margin-bottom:5px">
       <div>
         <div style="font-size:.95rem;font-weight:700;color:#3D3D3D">Dr. Victor Olivari</div>
@@ -2394,14 +2394,18 @@ function buildHeader(d){
     <hr style="border-color:#d0e8eb;margin:3px 0">`;
 }
 
+// Monto e Interes: mismo cuerpo en toda la tabla y sin cortes de linea,
+// para que entren importes de hasta $9.999.999,99 en columnas angostas.
+const numS = 'text-align:right;font-size:8.5pt;white-space:nowrap;';
+
 function buildItemRow(label,subLabel,monto,fecha,foja,tasa,d,interes){
   let r=`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb;overflow-wrap:break-word;word-break:break-word;hyphens:auto">${label}${subLabel?`<br><span style="font-size:.65rem;color:#555;font-weight:400">${subLabel}</span>`:''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center;font-size:.65rem;white-space:nowrap">${fmtFecha(fecha)}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${foja||''}</td>
-    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${fmt(monto)}</td>
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;${numS}">${fmt(monto)}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center;line-height:1.3">${tasa||''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${d||''}</td>
-    <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:right">${interes!=null?fmt(interes):''}</td></tr>`;
+    <td style="padding:3px 6px;border:1px solid #d0e8eb;${numS}">${interes!=null?fmt(interes):''}</td></tr>`;
   return r;
 }
 
@@ -2448,7 +2452,7 @@ function buildExportBody(datos){
   const totalDevengado = totalCapMonto + totalCapInt + totalHon + totalIntHon + totalGDoc + totalIntGDoc + gnd + intGnd;
   const pagosRealizados = totalDevengado - totalPlanilla;
 
-  const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:10pt;border:1px solid #d0e8eb;';
+  const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:10pt;font-weight:400;border:1px solid #d0e8eb;';
   const subtotalStyle = 'background:#E8F5F7;font-weight:600;';
   const cellB = 'padding:2px 5px;border:1px solid #d0e8eb;';
   const pagoStyle = 'color:#C94B3D;font-size:10pt;';
@@ -2464,7 +2468,7 @@ function buildExportBody(datos){
         <td style="${cellSm}overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#128179; ${label}${umaInfo}</td>
         <td style="padding:2px 4px;border:1px solid #eee;font-size:.65rem;text-align:center;white-space:nowrap">${fmtFecha(p.fecha)}</td>
         <td style="${cellSm}text-align:center">${p.foja||''}</td>
-        <td style="${cellSm}text-align:right">&#8212;&nbsp;${fmt(p.monto)}</td>
+        <td style="${cellSm}${numS}">&#8212;&nbsp;${fmt(p.monto)}</td>
         <td colspan="3" style="border:1px solid #eee"></td>
       </tr>`;
     }).join('');
@@ -2477,10 +2481,10 @@ function buildExportBody(datos){
       <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
       <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
       <td style="${cellB}text-align:center">${p.foja||''}</td>
-      <td style="${cellB}text-align:right">${fmt(p.capital)}</td>
+      <td style="${cellB}${numS}">${fmt(p.capital)}</td>
       <td style="${cellB}text-align:center;line-height:1.3">${tasaLabel||''}</td>
       <td style="${cellB}text-align:center">${p.dias}</td>
-      <td style="${cellB}text-align:right"><strong>${p.interes!=null?fmt(p.interes):'&#8212;'}</strong></td>
+      <td style="${cellB}${numS}">${p.interes!=null?fmt(p.interes):'&#8212;'}</td>
     </tr>`).join('');
   }
 
@@ -2491,10 +2495,10 @@ function buildExportBody(datos){
       <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
       <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
       <td style="${cellB}"></td>
-      <td style="${cellB}text-align:right">${fmt(p.capital)}</td>
+      <td style="${cellB}${numS}">${fmt(p.capital)}</td>
       <td style="${cellB}text-align:center;line-height:1.3">${fmtTasaExport(tipoTasa||'',null,p.tasa,hideAb)}</td>
       <td style="${cellB}text-align:center">${p.dias||''}</td>
-      <td style="${cellB}text-align:right"><strong>${fmt(p.interes)}</strong></td>
+      <td style="${cellB}${numS}">${fmt(p.interes)}</td>
     </tr>`).join('');
   }
 
@@ -2509,14 +2513,14 @@ function buildExportBody(datos){
       <td style="${cellB}"></td>
       <td style="${cellB}text-align:center;line-height:1.3">${tasaLabel||''}</td>
       <td style="${cellB}text-align:center">${dias||''}</td>
-      <td style="${cellB}text-align:right"><strong>${fmt(intTotal)}</strong></td>
+      <td style="${cellB}${numS}">${fmt(intTotal)}</td>
     </tr>`;
   }
 
   let html = `<table style="width:100%;border-collapse:collapse;font-size:10pt;font-family:Arial,sans-serif;margin-bottom:6px;table-layout:fixed">
     <colgroup>
-      <col style="width:30%"><col style="width:11%"><col style="width:6%">
-      <col style="width:18%"><col style="width:11%"><col style="width:8%"><col style="width:16%">
+      <col style="width:37%"><col style="width:11%"><col style="width:6%">
+      <col style="width:15%"><col style="width:8.5%"><col style="width:8%"><col style="width:14.5%">
     </colgroup>
     <thead><tr>
       <th style="${thStyle}">Concepto</th>
@@ -2544,7 +2548,7 @@ function buildExportBody(datos){
   html += `<tr style="${subtotalStyle}">
     <td colspan="3" style="${cellB}"><strong>Saldo Capital + Intereses</strong></td>
     <td colspan="3"></td>
-    <td style="${cellB}text-align:right"><strong>${fmt(totalCapSaldo+totalCapIntSaldo)}</strong></td>
+    <td style="${cellB}${numS}"><strong>${fmt(totalCapSaldo+totalCapIntSaldo)}</strong></td>
   </tr>`;
 
   // ── HONORARIOS (DETALLE COMPLETO POR PROFESIONAL) ──
@@ -2569,7 +2573,7 @@ function buildExportBody(datos){
     html += `<tr style="${subtotalStyle}">
       <td colspan="3" style="${cellB}"><strong>Saldo Honorarios + Intereses</strong></td>
       <td colspan="3"></td>
-      <td style="${cellB}text-align:right"><strong>${fmt(sHonArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
+      <td style="${cellB}${numS}"><strong>${fmt(sHonArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
     </tr>`;
   }
 
@@ -2594,7 +2598,7 @@ function buildExportBody(datos){
     html += `<tr style="${subtotalStyle}">
       <td colspan="3" style="${cellB}"><strong>Saldo Gastos Documentados + Intereses</strong></td>
       <td colspan="3"></td>
-      <td style="${cellB}text-align:right"><strong>${fmt(sGDocArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
+      <td style="${cellB}${numS}"><strong>${fmt(sGDocArr.reduce((s,x)=>s+x.saldo+x.sInt,0))}</strong></td>
     </tr>`;
   }
 
@@ -2617,7 +2621,7 @@ function buildExportBody(datos){
     if(hayPagGndAny||intGnd>0) html += `<tr style="${subtotalStyle}">
       <td colspan="3" style="${cellB}"><strong>Saldo Gastos No Documentados + Intereses</strong></td>
       <td colspan="3"></td>
-      <td style="${cellB}text-align:right"><strong>${fmt(saldoGnd+saldoIntGnd)}</strong></td>
+      <td style="${cellB}${numS}"><strong>${fmt(saldoGnd+saldoIntGnd)}</strong></td>
     </tr>`;
   }
 
@@ -2649,14 +2653,14 @@ function buildExportBody(datos){
   const sC = 'padding:3px 7px;border:1px solid #d0e8eb;';
   html += `
   <div style="margin-top:10px;page-break-inside:avoid">
-    <div style="font-weight:700;color:#2B7A86;font-size:.78rem;margin-bottom:4px;
+    <div style="font-weight:400;color:#2B7A86;font-size:.78rem;margin-bottom:4px;
                 text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #4A97A3;padding-bottom:2px">
       Resumen de saldos adeudados
     </div>
     <table style="width:74%;min-width:390px;border-collapse:collapse;font-size:10pt;font-family:Arial,sans-serif">
       <thead><tr>
-        <th style="background:#2B7A86;color:#fff;${sC}text-align:left">&#205;tem</th>
-        <th style="background:#2B7A86;color:#fff;${sC}text-align:right;width:110px">Monto</th>
+        <th style="background:#2B7A86;color:#fff;font-weight:400;${sC}text-align:left">&#205;tem</th>
+        <th style="background:#2B7A86;color:#fff;font-weight:400;${sC}text-align:right;width:110px">Monto</th>
       </tr></thead>
       <tbody>
         <tr><td style="${sC}">Capital</td><td style="${sC}text-align:right">${fmt(totalCapSaldo)}</td></tr>
@@ -3059,7 +3063,7 @@ async function exportarPDF(){
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
-  const mL=20, mR=10, mT=20, mB=40;
+  const mL=15, mR=8, mT=20, mB=40;
   const imgW=pw-mL-mR;
   const usableMM=ph-mT-mB;
   const pxPerMM=canvas.width/imgW;
