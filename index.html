@@ -2394,12 +2394,154 @@ function buildHeader(d){
     <hr style="border-color:#d0e8eb;margin:3px 0">`;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SEPARACIÓN SILÁBICA (castellano)
+// ---------------------------------------------------------------
+// En la columna Concepto las descripciones largas hay que partirlas.
+// `hyphens:auto` no alcanza: Chrome no trae diccionario de español y
+// termina cortando en cualquier letra ("Extraord-inaria"). Acá se
+// calculan los cortes válidos y se insertan guiones blandos (U+00AD),
+// que el navegador respeta siempre y muestra como guión al cortar.
+// Las celdas usan `hyphens:manual`, así estos son los únicos cortes
+// posibles y el resultado es idéntico en cualquier navegador.
+// ═══════════════════════════════════════════════════════════════
+const SHY = '\u00AD';
+const VOC_TODAS   = 'aeiouáéíóúüAEIOUÁÉÍÓÚÜ';
+const VOC_FUERTES = 'aeoáéóAEOÁÉÓ';
+const VOC_DEBIL_AC= 'íúÍÚ';
+// Grupos que nunca se separan: consonante + líquida, y los dígrafos.
+const GRUPOS_INSEP = ['pr','br','tr','dr','cr','gr','fr','pl','bl','cl','gl','fl','ch','ll','rr'];
+
+const esVocal = c => VOC_TODAS.indexOf(c) >= 0;
+
+// ¿Las dos vocales forman diptongo (mismo núcleo) o hiato (núcleos distintos)?
+function mismoNucleo(a, b){
+  if(VOC_DEBIL_AC.indexOf(a)>=0 || VOC_DEBIL_AC.indexOf(b)>=0) return false; // pa-ís, ba-úl
+  if(VOC_FUERTES.indexOf(a)>=0 && VOC_FUERTES.indexOf(b)>=0) return false;   // le-er, ca-os
+  return true;                                                               // diptongo
+}
+
+// Posiciones donde la palabra puede cortarse.
+function cortesSilabicos(p){
+  const n = p.length, nucleos = [];
+  for(let i=0; i<n; ){
+    if(esVocal(p[i])){
+      let j = i;
+      while(j+1<n && esVocal(p[j+1]) && mismoNucleo(p[j], p[j+1])) j++;
+      nucleos.push([i,j]); i = j+1;
+    } else i++;
+  }
+  const cortes = [];
+  for(let k=0; k+1<nucleos.length; k++){
+    const fin = nucleos[k][1], ini = nucleos[k+1][0];
+    const cons = ini - fin - 1;               // consonantes entre los dos núcleos
+    let corte;
+    if(cons === 0)      corte = ini;          // V-V   (hiato)
+    else if(cons === 1) corte = ini - 1;      // V-CV
+    else if(cons === 2) corte = GRUPOS_INSEP.indexOf(p.substr(fin+1,2).toLowerCase())>=0 ? fin+1 : fin+2;
+    else if(cons === 3) corte = GRUPOS_INSEP.indexOf(p.substr(fin+2,2).toLowerCase())>=0 ? fin+2 : fin+3;
+    else                corte = fin+3;        // VCC-CCV
+    cortes.push(corte);
+  }
+  return cortes;
+}
+
+// Inserta guiones blandos en las palabras largas de un texto que puede
+// traer entidades HTML (&#8212;, &times;): esas se dejan intactas.
+function hifenizarEs(texto){
+  return String(texto==null?'':texto).replace(
+    /(&[a-zA-Z]+;|&#\d+;)|([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{7,})/g,
+    (m, entidad, palabra) => {
+      if(entidad) return entidad;
+      // Nunca dejar menos de 2 letras sueltas a ningún lado (regla ortográfica).
+      const cortes = cortesSilabicos(palabra).filter(c => c>=2 && c<=palabra.length-2);
+      if(!cortes.length) return palabra;
+      let out = '', prev = 0;
+      cortes.forEach(c => { out += palabra.slice(prev, c) + SHY; prev = c; });
+      return out + palabra.slice(prev);
+    });
+}
+
+// ── Cortes de línea fijos para la exportación ──────────────────────
+// html2canvas no respeta los guiones blandos: rearma las líneas por su
+// cuenta a partir de los rects del DOM y termina cortando en cualquier
+// letra ("Extraord-inaria"), aunque en pantalla se vea bien. Por eso,
+// antes de rasterizar, partimos el texto nosotros en las posiciones
+// silábicas, con <br> y el guión escrito de verdad. Así el PDF sale
+// igual que lo que muestra el navegador.
+function partirEnLineas(texto, ancho, ctx){
+  const mide   = t => ctx.measureText(t).width;
+  const sinShy = t => t.split(SHY).join('');
+  const lineas = [];
+  let linea = '';
+  const cierra = () => { if(linea.trim()!=='') lineas.push(linea.trim()); linea=''; };
+
+  for(const tok of texto.split(/(\s+)/).filter(t=>t!=='')){
+    if(/^\s+$/.test(tok)){ if(linea!=='') linea += ' '; continue; }
+    let pend = tok;                                   // conserva los SHY
+    for(;;){
+      const plano = sinShy(pend);
+      if(mide(linea + plano) <= ancho){ linea += plano; break; }
+      // el corte silábico más largo que entre en lo que queda de renglón
+      const trozos = pend.split(SHY);
+      let k = -1;
+      for(let i=trozos.length-1; i>=1; i--){
+        if(mide(linea + trozos.slice(0,i).join('') + '-') <= ancho){ k = i; break; }
+      }
+      if(k > 0){
+        linea += trozos.slice(0,k).join('') + '-';
+        cierra();
+        pend = trozos.slice(k).join(SHY);
+        continue;
+      }
+      if(linea.trim() !== ''){ cierra(); continue; }   // probar en el renglón siguiente
+      // último recurso: no hay corte silábico que entre ni en un renglón vacío
+      let n = plano.length;
+      while(n > 1 && mide(plano.slice(0,n) + '-') > ancho) n--;
+      if(n <= 1){ linea = plano; break; }
+      linea = plano.slice(0,n) + '-';
+      cierra();
+      pend = plano.slice(n);
+    }
+  }
+  cierra();
+  return lineas;
+}
+
+function fijarCortesDeLinea(contenedor){
+  const ctx = document.createElement('canvas').getContext('2d');
+  contenedor.querySelectorAll('td.cpt').forEach(td => {
+    const cs = getComputedStyle(td);
+    const ancho = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 1;
+    if(!(ancho > 20)) return;
+    const nodos = [];
+    (function juntar(n){
+      n.childNodes.forEach(h => {
+        if(h.nodeType === 3 && h.textContent.trim() !== '') nodos.push(h);
+        else if(h.nodeType === 1) juntar(h);
+      });
+    })(td);
+    nodos.forEach(nodo => {
+      const pcs = getComputedStyle(nodo.parentElement);
+      ctx.font = pcs.fontStyle + ' ' + pcs.fontWeight + ' ' + pcs.fontSize + ' ' + pcs.fontFamily;
+      const lineas = partirEnLineas(nodo.textContent, ancho, ctx);
+      if(lineas.length === 0) return;
+      const frag = document.createDocumentFragment();
+      lineas.forEach((l,i) => {
+        if(i) frag.appendChild(document.createElement('br'));
+        frag.appendChild(document.createTextNode(l));
+      });
+      nodo.parentElement.replaceChild(frag, nodo);
+    });
+  });
+}
+
 // Monto e Interes: mismo cuerpo en toda la tabla y sin cortes de linea,
 // para que entren importes de hasta $9.999.999,99 en columnas angostas.
 const numS = 'text-align:right;font-size:8.5pt;white-space:nowrap;';
 
 function buildItemRow(label,subLabel,monto,fecha,foja,tasa,d,interes){
-  let r=`<tr><td style="padding:3px 6px;border:1px solid #d0e8eb;overflow-wrap:break-word;word-break:break-word;hyphens:auto">${label}${subLabel?`<br><span style="font-size:.65rem;color:#555;font-weight:400">${subLabel}</span>`:''}</td>
+  let r=`<tr><td class="cpt" style="padding:3px 6px;border:1px solid #d0e8eb;font-size:9pt;hyphens:manual;-webkit-hyphens:manual">${hifenizarEs(label)}${subLabel?`<br><span style="font-size:.65rem;color:#555;font-weight:400">${hifenizarEs(subLabel)}</span>`:''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center;font-size:.65rem;white-space:nowrap">${fmtFecha(fecha)}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;text-align:center">${foja||''}</td>
     <td style="padding:3px 6px;border:1px solid #d0e8eb;${numS}">${fmt(monto)}</td>
@@ -2452,7 +2594,7 @@ function buildExportBody(datos){
   const totalDevengado = totalCapMonto + totalCapInt + totalHon + totalIntHon + totalGDoc + totalIntGDoc + gnd + intGnd;
   const pagosRealizados = totalDevengado - totalPlanilla;
 
-  const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:10pt;font-weight:400;border:1px solid #d0e8eb;';
+  const thStyle = 'background:#2B7A86;color:#fff;padding:3px 5px;font-size:10pt;font-weight:700;border:1px solid #d0e8eb;';
   const subtotalStyle = 'background:#E8F5F7;font-weight:600;';
   const cellB = 'padding:2px 5px;border:1px solid #d0e8eb;';
   const pagoStyle = 'color:#C94B3D;font-size:10pt;';
@@ -2465,7 +2607,7 @@ function buildExportBody(datos){
         ? ` — UMA: ${fmt(p.valorUMAalPago)}` : '';
       const label = PAGO_CONCEPTOS[p.concepto] || p.concepto;
       return `<tr style="${pagoStyle}">
-        <td style="${cellSm}overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#128179; ${label}${umaInfo}</td>
+        <td class="cpt" style="${cellSm}hyphens:manual;-webkit-hyphens:manual">&#128179; ${hifenizarEs(label)}${umaInfo}</td>
         <td style="padding:2px 4px;border:1px solid #eee;font-size:.65rem;text-align:center;white-space:nowrap">${fmtFecha(p.fecha)}</td>
         <td style="${cellSm}text-align:center">${p.foja||''}</td>
         <td style="${cellSm}${numS}">&#8212;&nbsp;${fmt(p.monto)}</td>
@@ -2478,7 +2620,7 @@ function buildExportBody(datos){
   function periodoIntRows(periodos, etiquetaBase, tasaLabel){
     if(!periodos||periodos.length<=1) return '';
     return periodos.map((p,i)=>`<tr style="font-size:.72rem;background:#f9fdfd">
-      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
+      <td class="cpt" style="padding:2px 4px 2px 14px;${cellB}color:#444;hyphens:manual;-webkit-hyphens:manual">&#8627; Intereses s/ saldo de ${hifenizarEs(etiquetaBase)} — Per&#237;odo ${i+1}</td>
       <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
       <td style="${cellB}text-align:center">${p.foja||''}</td>
       <td style="${cellB}${numS}">${fmt(p.capital)}</td>
@@ -2492,7 +2634,7 @@ function buildExportBody(datos){
   function periodoAPIRows(periodoResultados, etiquetaBase, tipoTasa, hideAb=false){
     if(!periodoResultados||periodoResultados.length===0) return '';
     return periodoResultados.map((p,i)=>`<tr style="font-size:.72rem;background:#f9fdfd">
-      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ saldo de ${etiquetaBase} — Per&#237;odo ${i+1}</td>
+      <td class="cpt" style="padding:2px 4px 2px 14px;${cellB}color:#444;hyphens:manual;-webkit-hyphens:manual">&#8627; Intereses s/ saldo de ${hifenizarEs(etiquetaBase)} — Per&#237;odo ${i+1}</td>
       <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(p.desde)}<br>&rarr;${fmtFecha(p.hasta)}</td>
       <td style="${cellB}"></td>
       <td style="${cellB}${numS}">${fmt(p.capital)}</td>
@@ -2507,7 +2649,7 @@ function buildExportBody(datos){
     if(!int.activo||intTotal===0) return '';
     const fDesde = int.fechaInicio || fechaFallback || '';
     return `<tr style="font-size:.73rem;background:#f9fdfd">
-      <td style="padding:2px 4px 2px 14px;${cellB}color:#444;overflow-wrap:break-word;word-break:break-word;hyphens:auto">&#8627; Intereses s/ ${etiquetaBase}</td>
+      <td class="cpt" style="padding:2px 4px 2px 14px;${cellB}color:#444;hyphens:manual;-webkit-hyphens:manual">&#8627; Intereses s/ ${hifenizarEs(etiquetaBase)}</td>
       <td style="${cellB}text-align:center;font-size:.6rem;line-height:1.2">${fmtFecha(fDesde)}<br>&rarr;${fmtFecha(int.fechaFin)}</td>
       <td style="${cellB}"></td>
       <td style="${cellB}"></td>
@@ -2523,10 +2665,10 @@ function buildExportBody(datos){
       <col style="width:15%"><col style="width:8.5%"><col style="width:8%"><col style="width:14.5%">
     </colgroup>
     <thead><tr>
-      <th style="${thStyle}">Concepto</th>
-      <th style="${thStyle}">Fecha</th><th style="${thStyle}">Fs.</th>
-      <th style="${thStyle}">Monto</th><th style="${thStyle}">Tasa</th>
-      <th style="${thStyle}">D&#237;as</th><th style="${thStyle}">Inter&#233;s</th>
+      <th style="${thStyle}text-align:left">Concepto</th>
+      <th style="${thStyle}text-align:center">Fecha</th><th style="${thStyle}text-align:center">Fs.</th>
+      <th style="${thStyle}text-align:right">Monto</th><th style="${thStyle}text-align:center">Tasa</th>
+      <th style="${thStyle}text-align:center">D&#237;as</th><th style="${thStyle}text-align:right">Inter&#233;s</th>
     </tr></thead><tbody>`;
 
   // ── CAPITAL (DETALLE COMPLETO POR ÍTEM) ──
@@ -3033,6 +3175,7 @@ async function exportarPDF(){
   pa.innerHTML=`<div style="width:640px;background:#fff" lang="es">${buildPrintHTML()}</div>`;
   pa.style.display='block';
   const containerEl=pa.querySelector('div');
+  fijarCortesDeLinea(containerEl);   // antes de medir: cambia el alto de las filas
   const cr=containerEl.getBoundingClientRect();
   const theadEl=containerEl.querySelector('thead');
   let theadTop_c=0, theadH_c=0;
@@ -3041,7 +3184,7 @@ async function exportarPDF(){
     theadTop_c=Math.round((tr.top-cr.top)*2);
     theadH_c=Math.round(tr.height*2);
   }
-  const mainTableEl=containerEl.querySelector('table');
+  const mainTableEl=[...containerEl.querySelectorAll('table')].find(t=>t.querySelector('thead'));
   let mainTableBot_c=Infinity;
   if(mainTableEl){
     const mt=mainTableEl.getBoundingClientRect();
@@ -3108,6 +3251,7 @@ async function exportarImagen(){
   const pa=document.getElementById('printArea');
   pa.innerHTML=`<div style="width:640px;background:#fff" lang="es">${buildPrintHTML()}</div>`;
   pa.style.display='block';
+  fijarCortesDeLinea(pa.querySelector('div'));
   const canvas=await html2canvas(pa.querySelector('div'),{scale:2,useCORS:true,backgroundColor:'#fff'});
   pa.style.display='none';
   const a=document.createElement('a');
