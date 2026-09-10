@@ -790,6 +790,27 @@ async function probarWorker(){
 // ═══════════════════════════════════════════════════════════════
 // API PODER JUDICIAL CHACO — vía Cloudflare Worker
 // ═══════════════════════════════════════════════════════════════
+// Tanto Cloudflare como el sitio del PJ Chaco se caen unos segundos cada
+// tanto: Cloudflare devuelve un 5xx antes de que el Worker llegue a correr
+// (a veces con una página HTML, no JSON) y el PJ contesta un 52x. Son fallas
+// pasajeras, así que en vez de cortar la consulta se reintenta con una espera
+// corta. Recién si no responde en ningún intento se avisa, diciendo qué pasó
+// en lugar de un código pelado.
+const PJ_INTENTOS = 3;
+const PJ_ESPERAS  = [700, 1800];   // ms de espera antes del 2° y 3° intento
+const demora = ms => new Promise(r => setTimeout(r, ms));
+
+// Fallas de infraestructura (se reintentan), a diferencia de los errores de
+// cálculo del PJ ("No se pudo identificar una tasa numérica..."), que se
+// muestran en el acto porque reintentar no los va a cambiar.
+const esFallaPasajera = t => /error code:\s*5\d\d|Fallo al conectar con el PJ|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out/i.test(String(t||''));
+
+function errorPasajero(mensaje){
+  const e = new Error(mensaje);
+  e.pasajero = true;
+  return e;
+}
+
 async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
   const workerUrl = getWorkerUrl();
   if(!workerUrl) throw new Error('WORKER_NOT_CONFIGURED');
@@ -799,11 +820,34 @@ async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
     desde, hasta,
     tasa_pactada: String(tasaPactada||0)
   });
-  const res = await fetch(`${workerUrl}?${params}`);
-  if(!res.ok) throw new Error(`Worker HTTP ${res.status}`);
-  const data = await res.json();
-  if(data.error) throw new Error(data.error + (data.debug ? ` — ${data.debug.substring(0,80)}` : ''));
-  return { interes: data.interes, tasa: data.tasa, dias: data.dias, rawText: '' };
+  let causa = '';
+  for(let intento = 0; intento < PJ_INTENTOS; intento++){
+    if(intento) await demora(PJ_ESPERAS[intento-1] || 1800);
+    let res, cuerpo;
+    try {
+      res = await fetch(`${workerUrl}?${params}`);
+      cuerpo = await res.text();
+    } catch(e){ causa = 'red'; continue; }          // sin conexión: reintentar
+
+    if(!res.ok){
+      if(res.status >= 500 || res.status === 429){ causa = 'worker'; continue; }
+      throw new Error(`el servicio de tasas respondió ${res.status}.`);
+    }
+    let data;
+    try { data = JSON.parse(cuerpo); }
+    catch(e){ causa = 'worker'; continue; }         // vino HTML de error, no JSON
+
+    if(data.error){
+      if(esFallaPasajera(data.error)){ causa = 'pj'; continue; }
+      throw new Error(data.error + (data.debug ? ` — ${data.debug.substring(0,80)}` : ''));
+    }
+    return { interes: data.interes, tasa: data.tasa, dias: data.dias, rawText: '' };
+  }
+  throw errorPasajero(causa === 'pj'
+    ? `El sitio del PJ Chaco no respondió en ${PJ_INTENTOS} intentos. Suele ser pasajero: reintentá en unos minutos.`
+    : causa === 'red'
+      ? `No se pudo conectar en ${PJ_INTENTOS} intentos. Revisá la conexión y reintentá.`
+      : `El servicio de tasas no respondió en ${PJ_INTENTOS} intentos. Suele ser pasajero: reintentá en unos minutos.`);
 }
 
 
@@ -1162,6 +1206,8 @@ async function calcularTasaRubro(rubroKey){
     if(e.message==='WORKER_NOT_CONFIGURED'){
       showToast('Configure el Worker para obtener tasas automáticamente.','warning');
       abrirConfigWorker();
+    } else if(e.pasajero){
+      showToast(e.message,'warning');
     } else {
       showToast('Error al consultar PJ Chaco: '+e.message,'error');
     }
