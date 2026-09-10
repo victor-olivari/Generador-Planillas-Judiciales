@@ -790,15 +790,58 @@ async function probarWorker(){
 // ═══════════════════════════════════════════════════════════════
 // API PODER JUDICIAL CHACO — vía Cloudflare Worker
 // ═══════════════════════════════════════════════════════════════
-// Tanto Cloudflare como el sitio del PJ Chaco se caen unos segundos cada
-// tanto: Cloudflare devuelve un 5xx antes de que el Worker llegue a correr
-// (a veces con una página HTML, no JSON) y el PJ contesta un 52x. Son fallas
-// pasajeras, así que en vez de cortar la consulta se reintenta con una espera
-// corta. Recién si no responde en ningún intento se avisa, diciendo qué pasó
-// en lugar de un código pelado.
-const PJ_INTENTOS = 3;
-const PJ_ESPERAS  = [700, 1800];   // ms de espera antes del 2° y 3° intento
-const demora = ms => new Promise(r => setTimeout(r, ms));
+// ── TRATO CUIDADOSO CON EL SERVIDOR DEL PJ CHACO ───────────────────
+// justiciachaco.gov.ar es un sitio público de un organismo del Estado y la
+// app le pega una vez por período. Sin control, una planilla de 20 períodos
+// son 20 pedidos simultáneos, y con reintentos pueden ser 60 en pocos
+// segundos: justo el patrón que dispara un bloqueo por IP. Las reglas de acá
+// abajo mantienen el tráfico bajo y parejo:
+//   · nunca más de PJ_EN_PARALELO pedidos a la vez
+//   · una espera mínima entre pedidos, así no salen en ráfaga
+//   · reintentos con espera creciente y al azar, para no sincronizarlos
+//   · un tope de reintentos para toda la consulta, no por pedido
+//   · si el servicio se cae, se corta y NO se vuelve a insistir hasta que
+//     pase el enfriamiento, aunque el usuario apriete el botón de nuevo
+//   · lo ya consultado se guarda: la misma pregunta no se hace dos veces
+const PJ_EN_PARALELO     = 3;
+const PJ_ESPERA_MINIMA   = 250;     // ms entre dos pedidos consecutivos
+const PJ_INTENTOS        = 3;
+const PJ_ESPERA_BASE     = 800;     // ms, se duplica en cada reintento
+const PJ_ENFRIAMIENTO    = 60000;   // ms de pausa total tras una caída
+const PJ_TOPE_REINTENTOS = 8;       // reintentos totales por consulta
+
+const demora     = ms => new Promise(r => setTimeout(r, ms));
+const conJitter  = ms => Math.round(ms * (0.7 + Math.random() * 0.6));
+
+let pjUltimoPedido     = 0;   // cuándo salió el último pedido
+let pjPausadoHasta     = 0;   // hasta cuándo no se le pega al servicio
+let pjReintentosUsados = 0;   // presupuesto de la consulta en curso
+const pjCache = new Map();    // respuestas ya obtenidas, por parámetros
+
+const pjSegundosDePausa = () => Math.max(0, Math.ceil((pjPausadoHasta - Date.now()) / 1000));
+const pjPausar = ms => { pjPausadoHasta = Date.now() + (ms || PJ_ENFRIAMIENTO); };
+
+// Espacia la salida de los pedidos: nunca dos a menos de PJ_ESPERA_MINIMA.
+async function pjTurno(){
+  const ahora = Date.now();
+  const salida = Math.max(ahora, pjUltimoPedido + PJ_ESPERA_MINIMA);
+  pjUltimoPedido = salida;
+  if(salida > ahora) await demora(salida - ahora);
+}
+
+// Corre las tareas de a `cantidad`, no todas juntas. Si una falla, corta.
+async function enTandas(tareas, cantidad){
+  const salida = new Array(tareas.length);
+  let proxima = 0;
+  const obreros = Array.from({length: Math.min(cantidad, tareas.length)}, async () => {
+    while(proxima < tareas.length){
+      const k = proxima++;
+      salida[k] = await tareas[k]();
+    }
+  });
+  await Promise.all(obreros);
+  return salida;
+}
 
 // Fallas de infraestructura (se reintentan), a diferencia de los errores de
 // cálculo del PJ ("No se pudo identificar una tasa numérica..."), que se
@@ -811,26 +854,51 @@ function errorPasajero(mensaje){
   return e;
 }
 
+// Arranca una consulta nueva: renueva el presupuesto de reintentos.
+function pjNuevaConsulta(){ pjReintentosUsados = 0; }
+
 async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
   const workerUrl = getWorkerUrl();
   if(!workerUrl) throw new Error('WORKER_NOT_CONFIGURED');
+
+  const clave = [capital, tipoId, desde, hasta, tasaPactada||0].join('|');
+  if(pjCache.has(clave)) return pjCache.get(clave);
+
+  if(pjSegundosDePausa() > 0){
+    throw errorPasajero(`El servicio de tasas no está respondiendo. Para no saturarlo, esperá ${pjSegundosDePausa()} s antes de reintentar.`);
+  }
+
   const params = new URLSearchParams({
     importe: String(capital),
     id_tipo_tasa: String(tipoId),
     desde, hasta,
     tasa_pactada: String(tasaPactada||0)
   });
+
   let causa = '';
   for(let intento = 0; intento < PJ_INTENTOS; intento++){
-    if(intento) await demora(PJ_ESPERAS[intento-1] || 1800);
+    if(intento){
+      if(pjReintentosUsados >= PJ_TOPE_REINTENTOS) break;   // presupuesto agotado
+      pjReintentosUsados++;
+      await demora(conJitter(PJ_ESPERA_BASE * Math.pow(2, intento - 1)));
+    }
+    if(pjSegundosDePausa() > 0) break;      // otro pedido ya detectó la caída
+    await pjTurno();
+
     let res, cuerpo;
     try {
       res = await fetch(`${workerUrl}?${params}`);
       cuerpo = await res.text();
     } catch(e){ causa = 'red'; continue; }          // sin conexión: reintentar
 
+    // El servidor pide explícitamente que esperemos: se respeta y no se insiste.
+    if(res.status === 429 || res.status === 403){
+      const ra = parseInt(res.headers.get('Retry-After') || '', 10);
+      pjPausar(isNaN(ra) ? PJ_ENFRIAMIENTO : Math.min(ra * 1000, 300000));
+      throw errorPasajero(`El servicio pidió reducir la frecuencia de consultas. Se pausa ${pjSegundosDePausa()} s.`);
+    }
     if(!res.ok){
-      if(res.status >= 500 || res.status === 429){ causa = 'worker'; continue; }
+      if(res.status >= 500){ causa = 'worker'; continue; }
       throw new Error(`el servicio de tasas respondió ${res.status}.`);
     }
     let data;
@@ -841,13 +909,18 @@ async function fetchTasaPJ(capital, tipoId, desde, hasta, tasaPactada=0){
       if(esFallaPasajera(data.error)){ causa = 'pj'; continue; }
       throw new Error(data.error + (data.debug ? ` — ${data.debug.substring(0,80)}` : ''));
     }
-    return { interes: data.interes, tasa: data.tasa, dias: data.dias, rawText: '' };
+    const salida = { interes: data.interes, tasa: data.tasa, dias: data.dias, rawText: '' };
+    pjCache.set(clave, salida);
+    return salida;
   }
-  throw errorPasajero(causa === 'pj'
-    ? `El sitio del PJ Chaco no respondió en ${PJ_INTENTOS} intentos. Suele ser pasajero: reintentá en unos minutos.`
-    : causa === 'red'
-      ? `No se pudo conectar en ${PJ_INTENTOS} intentos. Revisá la conexión y reintentá.`
-      : `El servicio de tasas no respondió en ${PJ_INTENTOS} intentos. Suele ser pasajero: reintentá en unos minutos.`);
+
+  pjPausar();   // se agotaron los intentos: dejar de insistir por un rato
+  const seg = Math.round(PJ_ENFRIAMIENTO / 1000);
+  throw errorPasajero(causa === 'red'
+    ? 'No se pudo conectar. Revisá la conexión y reintentá.'
+    : causa === 'pj'
+      ? `El sitio del PJ Chaco no respondió. Para no saturarlo, no se consulta durante ${seg} s.`
+      : `El servicio de tasas no respondió. Para no saturarlo, no se consulta durante ${seg} s.`);
 }
 
 
@@ -1179,6 +1252,7 @@ async function calcularTasaRubro(rubroKey){
   })() : calcularPeriodosBase(monto, pagosBase, int.fechaInicio, int.fechaFin);
 
   if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Consultando PJ (${periodos.length} período${periodos.length>1?'s':''})...`;}
+  pjNuevaConsulta();
   try{
     if(periodos.length<=1){
       const res = await fetchTasaPJ(monto, tipoId, isoToDD(int.fechaInicio), isoToDD(int.fechaFin));
@@ -1186,11 +1260,11 @@ async function calcularTasaRubro(rubroKey){
       int.periodoResultados = null;
     } else {
       if(btn) btn.innerHTML=`<span class="spin"></span> Calculando ${periodos.length} períodos...`;
-      const promesas = periodos.map(async (p, i) => {
+      // De a PJ_EN_PARALELO, no los períodos todos juntos.
+      const resultados = await enTandas(periodos.map((p, i) => async () => {
         const res = await fetchTasaPJ(p.capital, tipoId, isoToDD(p.desde), isoToDD(p.hasta));
         return { capital:p.capital, desde:p.desde, hasta:p.hasta, interes:res.interes, tasa:res.tasa, dias:res.dias, _idx: i };
-      });
-      const resultados = await Promise.all(promesas);
+      }), PJ_EN_PARALELO);
       resultados.sort((a,b) => a._idx - b._idx);
       
       const periodoResultados = resultados.map(r => ({
