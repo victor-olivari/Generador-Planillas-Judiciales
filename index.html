@@ -126,6 +126,7 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
   <div class="d-flex align-items-center gap-2">
     <span class="badge-tasas"><i class="bi bi-link-45deg me-1"></i>Tasas: PJ Chaco (automático)</span>
     <button class="btn btn-sm text-white" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:.75rem;padding:3px 10px" onclick="abrirConfigWorker()" title="Configurar proxy automático de tasas"><i class="bi bi-gear me-1"></i>Configurar Worker</button>
+    <button class="btn btn-sm text-white position-relative" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:.75rem;padding:3px 10px" onclick="abrirFallos()" title="Ver el registro de fallos"><i class="bi bi-clipboard-pulse me-1"></i>Fallos<span id="badgeFallos" class="badge bg-danger position-absolute top-0 start-100 translate-middle" style="display:none;font-size:.6rem">0</span></button>
   </div>
 </nav>
 
@@ -344,6 +345,30 @@ body{background:var(--ol-bg);font-family:'Segoe UI',Arial,sans-serif;font-size:1
 </div>
 
 <!-- PRINT -->
+<!-- REGISTRO DE FALLOS -->
+<div class="modal fade" id="modalFallos" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--ol-teal);color:#fff">
+        <h5 class="modal-title"><i class="bi bi-clipboard-pulse me-2"></i>Registro de fallos</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center mb-2">
+          <div class="small text-muted">Queda guardado en este navegador. No se envía a ningún lado.</div>
+          <span class="ms-auto small text-muted" id="contadorFallos">sin registros</span>
+        </div>
+        <div id="listaFallos" style="max-height:55vh;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-danger btn-sm" onclick="borrarFallos()"><i class="bi bi-trash me-1"></i>Vaciar</button>
+        <button class="btn btn-sm text-white" style="background:var(--ol-teal)" onclick="copiarFallos()"><i class="bi bi-clipboard me-1"></i>Copiar todo</button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="printArea"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1280,10 +1305,16 @@ async function calcularTasaRubro(rubroKey){
     if(e.message==='WORKER_NOT_CONFIGURED'){
       showToast('Configure el Worker para obtener tasas automáticamente.','warning');
       abrirConfigWorker();
-    } else if(e.pasajero){
-      showToast(e.message,'warning');
     } else {
-      showToast('Error al consultar PJ Chaco: '+e.message,'error');
+      // Se anota con los datos de la consulta: sin saber qué tasa y qué fechas
+      // se pidieron, el mensaje solo no alcanza para reproducir el problema.
+      registrarFallo('consulta de tasa al PJ Chaco', e, {
+        rubro: rubroKey, tasa: TASA_LABEL[int.tipoTasa] || int.tipoTasa,
+        desde: int.fechaInicio, hasta: int.fechaFin,
+        periodos: periodos.length, importe: monto, pasajero: e.pasajero ? 'sí' : 'no',
+      });
+      showToast(e.pasajero ? e.message : 'Error al consultar PJ Chaco: '+e.message,
+                e.pasajero ? 'warning' : 'error');
     }
   }
   if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-cloud-download me-1"></i>Obtener tasa del PJ Chaco';}
@@ -1787,6 +1818,138 @@ function getInteresConPeriodos(int, monto, pagos, rubroKey){
   return periodos.reduce((s,p)=>s+(p.interes||0),0);
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// REGISTRO DE FALLOS
+// ---------------------------------------------------------------
+// Antes un error se mostraba tres segundos en un cartel y se perdía. Cuando
+// algo fallaba —el 522 del PJ, el 500 de Cloudflare— no quedaba rastro y había
+// que reconstruirlo de memoria o de una foto de la pantalla.
+//
+// Acá queda anotado: qué acción se estaba haciendo, con qué datos, y qué dijo
+// el error. Vive en el localStorage del navegador; no se manda a ningún lado.
+// Es un anillo de los últimos FALLOS_MAX, así no crece sin control.
+// ═══════════════════════════════════════════════════════════════
+const FALLOS_KEY = 'planilla_fallos';
+const FALLOS_MAX = 200;
+
+function leerFallos(){
+  try {
+    const lista = JSON.parse(localStorage.getItem(FALLOS_KEY) || '[]');
+    return Array.isArray(lista) ? lista : [];
+  } catch(e){ return []; }
+}
+
+// `contexto` es lo que hace útil el registro: no alcanza con "falló", hay que
+// saber qué tasa, qué fechas y qué importe se estaban pidiendo.
+function registrarFallo(accion, error, contexto){
+  try {
+    const lista = leerFallos();
+    lista.unshift({
+      ts: new Date().toISOString(),
+      accion: String(accion || 'sin identificar'),
+      mensaje: (error && error.message) ? String(error.message) : String(error || ''),
+      stack: (error && error.stack)
+        ? String(error.stack).split('\n').slice(1, 4).map(l => l.trim()).join(' ← ') : '',
+      contexto: contexto || null,
+    });
+    localStorage.setItem(FALLOS_KEY, JSON.stringify(lista.slice(0, FALLOS_MAX)));
+    pintarBadgeFallos();
+  } catch(e){ /* si ni anotar se puede, no hay nada más que hacer */ }
+}
+
+function borrarFallos(){
+  try { localStorage.removeItem(FALLOS_KEY); } catch(e){}
+  pintarBadgeFallos();
+  renderFallos();
+  showToast('Registro de fallos vaciado.');
+}
+
+// Un error de JavaScript suelto hoy rompe la pantalla en silencio: no hay
+// cartel ni nada. Estas dos capturas son las que más van a servir.
+window.addEventListener('error', ev => {
+  registrarFallo('error de javascript', ev.error || new Error(ev.message || 'error'),
+    {archivo: (ev.filename || '').split('/').pop(), linea: ev.lineno, columna: ev.colno});
+});
+window.addEventListener('unhandledrejection', ev => {
+  const r = ev.reason;
+  registrarFallo('promesa sin atender', r instanceof Error ? r : new Error(String(r)));
+});
+
+function pintarBadgeFallos(){
+  const b = document.getElementById('badgeFallos');
+  if(!b) return;
+  const n = leerFallos().length;
+  b.textContent = n > 99 ? '99+' : n;
+  b.style.display = n ? 'inline-block' : 'none';
+}
+
+function fmtFechaHora(iso){
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('es-AR', {day:'2-digit', month:'2-digit', year:'2-digit',
+                                      hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  } catch(e){ return iso; }
+}
+
+const escaparHtml = t => String(t == null ? '' : t)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function renderFallos(){
+  const cont = document.getElementById('listaFallos');
+  if(!cont) return;
+  const lista = leerFallos();
+  document.getElementById('contadorFallos').textContent =
+    lista.length ? `${lista.length} registro${lista.length>1?'s':''}` : 'sin registros';
+  if(!lista.length){
+    cont.innerHTML = `<div class="text-center text-muted py-4">
+      <i class="bi bi-check-circle" style="font-size:2rem;opacity:.35"></i>
+      <div class="mt-2">No se registró ningún fallo.</div>
+      <div class="small">Si algo falla, va a quedar anotado acá automáticamente.</div></div>`;
+    return;
+  }
+  cont.innerHTML = lista.map(f => {
+    const ctx = f.contexto ? Object.entries(f.contexto)
+      .filter(([,v]) => v !== null && v !== undefined && v !== '')
+      .map(([k,v]) => `<span class="badge bg-light text-dark border me-1" style="font-weight:400">${escaparHtml(k)}: ${escaparHtml(v)}</span>`)
+      .join('') : '';
+    return `<div class="border-start border-3 border-danger ps-2 py-2 mb-2" style="background:#fff7f7">
+      <div class="d-flex align-items-baseline gap-2 flex-wrap">
+        <strong style="font-size:.8rem">${escaparHtml(f.accion)}</strong>
+        <span class="text-muted" style="font-size:.7rem">${fmtFechaHora(f.ts)}</span>
+      </div>
+      <div style="font-size:.78rem;color:#b02a37;word-break:break-word">${escaparHtml(f.mensaje)}</div>
+      ${ctx ? `<div class="mt-1" style="font-size:.68rem">${ctx}</div>` : ''}
+      ${f.stack ? `<div class="text-muted mt-1" style="font-size:.65rem;word-break:break-word">${escaparHtml(f.stack)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function abrirFallos(){
+  renderFallos();
+  new bootstrap.Modal(document.getElementById('modalFallos')).show();
+}
+
+// El texto plano es lo que se pega en un mensaje para pedir ayuda.
+function copiarFallos(){
+  const lista = leerFallos();
+  if(!lista.length){ showToast('No hay fallos para copiar.','warning'); return; }
+  const texto = [
+    `Registro de fallos — Generador de Planillas`,
+    `Copiado el ${fmtFechaHora(new Date().toISOString())} · ${lista.length} registro(s)`,
+    `Navegador: ${navigator.userAgent}`,
+    ''.padEnd(60, '─'),
+    ...lista.map(f => [
+      `[${fmtFechaHora(f.ts)}] ${f.accion}`,
+      `  ${f.mensaje}`,
+      f.contexto ? `  datos: ${JSON.stringify(f.contexto)}` : '',
+      f.stack ? `  origen: ${f.stack}` : '',
+    ].filter(Boolean).join('\n')),
+  ].join('\n');
+  navigator.clipboard.writeText(texto)
+    .then(() => showToast(`${lista.length} fallo(s) copiados al portapapeles.`))
+    .catch(() => showToast('No se pudo copiar. Seleccioná el texto a mano.','warning'));
+}
 
 // ═══════════════════════════════════════════════════════════════
 // UMA — UNIDAD DE MEDIDA ARANCELARIA (Ley 4228-C, Chaco)
@@ -2312,7 +2475,7 @@ async function guardarHistorial(){
         const det=r.error||JSON.stringify(r).slice(0,80);
         showToast('Guardado local OK. Remoto: '+det,'warning');
       }
-    }catch(e){ showToast('Guardado local OK. Sin conexión al worker: '+e.message,'warning'); }
+    }catch(e){ registrarFallo('guardar en el historial compartido', e); showToast('Guardado local OK. Sin conexión al worker: '+e.message,'warning'); }
   } else {
     showToast('Planilla guardada en historial local.');
   }
@@ -2428,7 +2591,7 @@ async function cargarPlanillaRemota(kvId){
     const r = await res.json();
     if(r.data){ cargarDatos(r.data); }
     else { showToast('No se pudo cargar la planilla.','danger'); }
-  }catch(e){ showToast('Error al cargar: '+e.message,'danger'); }
+  }catch(e){ registrarFallo('cargar planilla del historial', e, {id: kvId}); showToast('Error al cargar: '+e.message,'danger'); }
 }
 
 async function eliminarHistorialRemoto(kvId, btn){
@@ -2439,7 +2602,7 @@ async function eliminarHistorialRemoto(kvId, btn){
   try{
     await fetch(`${wurl}?accion=hist_del&id=${encodeURIComponent(kvId)}`);
     renderHistorial();
-  }catch(e){ btn.disabled=false; showToast('Error al eliminar.','danger'); }
+  }catch(e){ btn.disabled=false; registrarFallo('eliminar del historial', e, {id: kvId}); showToast('Error al eliminar.','danger'); }
 }
 
 function eliminarHistorial(i){
@@ -2481,7 +2644,7 @@ async function duplicarHistorialRemota(kvId){
     const r2=await res2.json();
     if(r2.ok){ showToast('Planilla duplicada en historial compartido ✓','success'); renderHistorial(); }
     else { showToast('Error al duplicar: '+(r2.error||'error'),'danger'); }
-  }catch(e){ showToast('Error: '+e.message,'danger'); }
+  }catch(e){ registrarFallo('duplicar planilla del historial', e, {id: kvId}); showToast('Error: '+e.message,'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3416,6 +3579,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   // Render inicial
   renderTodo();
+  pintarBadgeFallos();
   // Deja la UMA al día en segundo plano (no bloquea la carga de la planilla)
   const umaPrevia = getUMAVigente();
   refrescarUMA().then(info => { if(info.valor !== umaPrevia) renderTodo(); });
